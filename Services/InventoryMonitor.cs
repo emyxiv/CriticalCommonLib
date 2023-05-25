@@ -4,43 +4,41 @@ using System.Linq;
 using System.Threading.Tasks;
 using CriticalCommonLib.Crafting;
 using CriticalCommonLib.Models;
-using CriticalCommonLib.Services.Ui;
-using Dalamud.Game;
-using Dalamud.Game.Network;
 using Dalamud.Logging;
-using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using CriticalCommonLib.Extensions;
-using Dalamud.Hooking;
-using Dalamud.Utility.Signatures;
-using FFXIVClientStructs.FFXIV.Client.Game;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
-using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using CriticalCommonLib.GameStructs;
+using FFXIVClientStructs.FFXIV.Client.System.Framework;
+using FFXIVClientStructs.FFXIV.Client.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using static FFXIVClientStructs.FFXIV.Client.Game.InventoryItem;
 using InventoryItem = CriticalCommonLib.Models.InventoryItem;
 using InventoryType = CriticalCommonLib.Enums.InventoryType;
 
 namespace CriticalCommonLib.Services
 {
-    public class InventoryMonitor : IDisposable
+    public class InventoryMonitor : IInventoryMonitor
     {
         public delegate void InventoryChangedDelegate(
             Dictionary<ulong, Dictionary<InventoryCategory, List<InventoryItem>>> inventories, ItemChanges changedItems);
 
         private IEnumerable<InventoryItem> _allItems;
-        private CharacterMonitor _characterMonitor;
+        private ICharacterMonitor _characterMonitor;
         private Dictionary<ulong, Dictionary<InventoryCategory, List<InventoryItem>>> _inventories;
-        private Dictionary<(uint, ItemFlags, ulong), int> _itemCounts = new();
+        private Dictionary<(uint, ItemFlags, ulong), int> _retainerItemCounts = new();
+        private Dictionary<(uint, ItemFlags), int> _itemCounts = new();
         private Dictionary<InventoryType, bool> _loadedInventories;
         private Queue<DateTime> _scheduledUpdates = new ();
         private Dictionary<uint, ItemMarketBoardInfo> _retainerMarketPrices = new();
-        private InventoryScanner _inventoryScanner;
-        private CraftMonitor _craftMonitor;
+        private IInventoryScanner _inventoryScanner;
+        private ICraftMonitor _craftMonitor;
+        private IFrameworkService _frameworkService;
 
-        public InventoryMonitor(CharacterMonitor monitor, CraftMonitor craftMonitor, InventoryScanner scanner)
+        public InventoryMonitor(ICharacterMonitor monitor, ICraftMonitor craftMonitor, IInventoryScanner scanner, IFrameworkService frameworkService)
         {
             _characterMonitor = monitor;
             _craftMonitor = craftMonitor;
             _inventoryScanner = scanner;
+            _frameworkService = frameworkService;
 
             _inventories = new Dictionary<ulong, Dictionary<InventoryCategory, List<InventoryItem>>>();
             _allItems = new List<InventoryItem>();
@@ -66,11 +64,10 @@ namespace CriticalCommonLib.Services
                     inventory.Value.Clear();
                 }
 
-                Service.Framework.RunOnFrameworkThread(() =>
+                _frameworkService.RunOnFrameworkThread(() =>
                 {
                     OnInventoryChanged?.Invoke(_inventories,
-                        new ItemChanges()
-                            { NewItems = new List<ItemChangesItem>(), RemovedItems = new List<ItemChangesItem>() });
+                        new ItemChanges(new List<ItemChangesItem>(), new List<ItemChangesItem>()));
                 });
             }
         }
@@ -79,7 +76,8 @@ namespace CriticalCommonLib.Services
 
         public IEnumerable<InventoryItem> AllItems => _allItems;
         
-        public Dictionary<(uint, ItemFlags, ulong), int> ItemCounts => _itemCounts;
+        public Dictionary<(uint, ItemFlags, ulong), int> RetainerItemCounts => _retainerItemCounts;
+        public Dictionary<(uint, ItemFlags), int> ItemCounts => _itemCounts;
 
         public event InventoryChangedDelegate? OnInventoryChanged;
 
@@ -96,6 +94,20 @@ namespace CriticalCommonLib.Services
             return new List<InventoryItem>();
         }
 
+        public List<InventoryItem> GetSpecificInventory(ulong characterId, InventoryType inventoryType)
+        {
+            var category = inventoryType.ToInventoryCategory();
+            if (_inventories.TryGetValue(characterId, out var value))
+            {
+                if (value.ContainsKey(category))
+                {
+                    return value[category].Where(c => c.SortedContainer == inventoryType).ToList();
+                }
+            }
+
+            return new List<InventoryItem>();
+        }
+
         public void ClearCharacterInventories(ulong characterId)
         {
             if (_inventories.ContainsKey(characterId))
@@ -106,11 +118,10 @@ namespace CriticalCommonLib.Services
                     inventory.Value.Clear();
                 }
 
-                Service.Framework.RunOnFrameworkThread(() =>
+                _frameworkService.RunOnFrameworkThread(() =>
                 {
                     OnInventoryChanged?.Invoke(_inventories,
-                        new ItemChanges()
-                            { NewItems = new List<ItemChangesItem>(), RemovedItems = new List<ItemChangesItem>() });
+                        new ItemChanges(new List<ItemChangesItem>(), new List<ItemChangesItem>()));
                 });
             }
         }
@@ -121,18 +132,185 @@ namespace CriticalCommonLib.Services
             {
                 inventories.Remove(0);
             }
+
+            foreach (var inventory in inventories)
+            {
+                if (inventory.Key.ToString().StartsWith("1"))
+                {
+                    inventory.Value.Remove(InventoryCategory.FreeCompanyBags);
+                }
+            }
             _inventories = inventories;
+            FillEmptySlots();
             GenerateAllItems();
-            Service.Framework.RunOnFrameworkThread(() =>
+            _frameworkService.RunOnFrameworkThread(() =>
             {
                 OnInventoryChanged?.Invoke(_inventories,
-                    new ItemChanges() { NewItems = new(), RemovedItems = new() });
+                    new ItemChanges(new(), new()));
             });
         }
 
-        private void GenerateItemCounts()
+        public void FillEmptySlots()
         {
-            var itemCounts = new Dictionary<(uint, ItemFlags, ulong), int>();
+            foreach (var character in _inventories)
+            {
+                var actualCharacter = _characterMonitor.GetCharacterById(character.Key);
+                if(actualCharacter != null)
+                {
+                    PlotSize? plotSize = null;
+                    if (actualCharacter.CharacterType == CharacterType.Housing)
+                    {
+                        plotSize = Plots.GetSize(actualCharacter.HousingZone, actualCharacter.DivisionId, actualCharacter.PlotId, actualCharacter.RoomId);
+                        PluginLog.Debug("Determined the house size for " + actualCharacter.FormattedName + " is " + plotSize);
+                    }
+                    foreach (var inventory in character.Value)
+                    {
+                        var maxSlots = 0;
+                        short? maxTotalSlots = null;
+                        List<InventoryType> types = new List<InventoryType>();
+                        switch (inventory.Key)
+                        {
+                            case InventoryCategory.CharacterBags:
+                            {
+                                maxSlots = 35;
+                                types.Add(InventoryType.Bag0);
+                                types.Add(InventoryType.Bag1);
+                                types.Add(InventoryType.Bag2);
+                                types.Add(InventoryType.Bag3);
+                                break;
+                            }
+                            case InventoryCategory.RetainerBags:
+                            {
+                                maxSlots = 25;
+                                types.Add(InventoryType.RetainerBag0);
+                                types.Add(InventoryType.RetainerBag1);
+                                types.Add(InventoryType.RetainerBag2);
+                                types.Add(InventoryType.RetainerBag3);
+                                types.Add(InventoryType.RetainerBag4);
+                                break;
+                            }
+                            case InventoryCategory.GlamourChest:
+                            {
+                                maxSlots = 800;
+                                types.Add(InventoryType.GlamourChest);
+                                break;
+                            }
+                            case InventoryCategory.FreeCompanyBags:
+                            {
+                                maxSlots = 50;
+                                types.Add(InventoryType.FreeCompanyBag0);
+                                types.Add(InventoryType.FreeCompanyBag1);
+                                types.Add(InventoryType.FreeCompanyBag2);
+                                types.Add(InventoryType.FreeCompanyBag3);
+                                types.Add(InventoryType.FreeCompanyBag4);
+                                types.Add(InventoryType.FreeCompanyBag5);
+                                break;
+                            }
+                            case InventoryCategory.HousingInteriorItems:
+                            {
+                                if (plotSize == null)
+                                {
+                                    PluginLog.Error("Could not determine correct housing size.");
+                                    break;
+                                }
+
+                                maxSlots = 50;
+                                maxTotalSlots = plotSize.Value.GetInternalSlots();
+                                types.Add(InventoryType.HousingInteriorPlacedItems1);
+                                types.Add(InventoryType.HousingInteriorPlacedItems2);
+                                types.Add(InventoryType.HousingInteriorPlacedItems3);
+                                types.Add(InventoryType.HousingInteriorPlacedItems4);
+                                types.Add(InventoryType.HousingInteriorPlacedItems5);
+                                types.Add(InventoryType.HousingInteriorPlacedItems6);
+                                types.Add(InventoryType.HousingInteriorPlacedItems7);
+                                types.Add(InventoryType.HousingInteriorPlacedItems8);
+                                break;
+                            }
+                            case InventoryCategory.HousingInteriorStoreroom:
+                            {
+                                if (plotSize == null)
+                                {
+                                    PluginLog.Error("Could not determine correct housing size.");
+                                    break;
+                                }
+
+                                maxSlots = 50;
+                                maxTotalSlots = plotSize.Value.GetInternalSlots();
+                                types.Add(InventoryType.HousingInteriorStoreroom1);
+                                types.Add(InventoryType.HousingInteriorStoreroom2);
+                                types.Add(InventoryType.HousingInteriorStoreroom3);
+                                types.Add(InventoryType.HousingInteriorStoreroom4);
+                                types.Add(InventoryType.HousingInteriorStoreroom5);
+                                types.Add(InventoryType.HousingInteriorStoreroom6);
+                                types.Add(InventoryType.HousingInteriorStoreroom7);
+                                types.Add(InventoryType.HousingInteriorStoreroom8);
+                                break;
+                            }
+                            case InventoryCategory.HousingExteriorItems:
+                            {
+                                if (plotSize == null)
+                                {
+                                    PluginLog.Error("Could not determine correct housing size.");
+                                    break;
+                                }
+
+                                maxSlots = 40;
+                                maxTotalSlots = plotSize.Value.GetExternalSlots();
+                                types.Add(InventoryType.HousingExteriorPlacedItems);
+                                break;
+                            }
+                            case InventoryCategory.HousingExteriorStoreroom:
+                            {
+                                if (plotSize == null)
+                                {
+                                    PluginLog.Error("Could not determine correct housing size.");
+                                    break;
+                                }
+                                maxSlots = 40;
+                                maxTotalSlots = plotSize.Value.GetExternalSlots();
+                                types.Add(InventoryType.HousingExteriorStoreroom);
+                                break;
+                            }
+                        }
+
+                        var existingSlots = inventory.Value.Select(c => (c.SortedSlotIndex, c.SortedContainer))
+                            .ToHashSet();
+                        var currentSlot = 0;
+                        foreach (var type in types)
+                        {
+                            if (maxTotalSlots != null && currentSlot >= maxTotalSlots)
+                            {
+                                break;
+                            }
+                            for (int i = 0; i < maxSlots; i++)
+                            {
+                                if (maxTotalSlots != null && currentSlot >= maxTotalSlots)
+                                {
+                                    break;
+                                }
+                                if (!existingSlots.Contains(((short)i, type)))
+                                {
+                                    var inventoryItem = new InventoryItem(type, (short)i, 0, 0, 0, 0, ItemFlags.None, 0,
+                                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                                    inventoryItem.SortedContainer = type;
+                                    inventoryItem.SortedCategory = type.ToInventoryCategory();
+                                    inventoryItem.RetainerId = character.Key;
+                                    inventoryItem.SortedSlotIndex = i;
+                                    inventory.Value.Add(inventoryItem);
+                                }
+
+                                currentSlot++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public void GenerateItemCounts()
+        {
+            var retainerItemCounts = new Dictionary<(uint, ItemFlags, ulong), int>();
+            var itemCounts = new Dictionary<(uint, ItemFlags), int>();
             foreach (var inventory in _inventories)
             {
                 foreach (var itemList in inventory.Value.Values)
@@ -140,16 +318,25 @@ namespace CriticalCommonLib.Services
                     foreach (var item in itemList)
                     {
                         var key = (item.ItemId, item.Flags, item.RetainerId);
-                        if (!itemCounts.ContainsKey(key))
+                        if (!retainerItemCounts.ContainsKey(key))
                         {
-                            itemCounts[key] = 0;
+                            retainerItemCounts[key] = 0;
                         }
 
-                        itemCounts[key] += (int)item.Quantity;
+                        retainerItemCounts[key] += (int)item.Quantity;
+                        
+                        var key2 = (item.ItemId, item.Flags);
+                        if (!itemCounts.ContainsKey(key2))
+                        {
+                            itemCounts[key2] = 0;
+                        }
+
+                        itemCounts[key2] += (int)item.Quantity;
 
                     }
                 }
             }
+            _retainerItemCounts = retainerItemCounts;
             _itemCounts = itemCounts;
         }
 
@@ -254,7 +441,7 @@ namespace CriticalCommonLib.Services
                 actualDeletedItems.Add(ConvertHashedItem(removedItem.Key, removedItem.Value));
             }
             
-            return new ItemChanges() {NewItems = actualAddedItems, RemovedItems = actualDeletedItems};
+            return new ItemChanges( actualAddedItems, actualDeletedItems);
         }
 
         private void GenerateAllItems()
@@ -286,7 +473,7 @@ namespace CriticalCommonLib.Services
 
         private void GenerateInventoriesTask()
         {
-            if (Service.ClientState.LocalContentId == 0)
+            if (_characterMonitor.LocalContentId == 0)
             {
                 PluginLog.Debug("Not generating inventory, not logged in.");
                 return;
@@ -296,13 +483,14 @@ namespace CriticalCommonLib.Services
             GenerateItemCounts();
 
             var newInventories = new Dictionary<ulong, Dictionary<InventoryCategory, List<InventoryItem>>>();
-            newInventories.Add(Service.ClientState.LocalContentId,
+            newInventories.Add(_characterMonitor.LocalContentId,
                 new Dictionary<InventoryCategory, List<InventoryItem>>());
             GenerateCharacterInventories(newInventories);
             GenerateSaddleInventories(newInventories);
             GenerateArmouryChestInventories(newInventories);
             GenerateEquippedItems(newInventories);
             GenerateFreeCompanyInventories(newInventories);
+            GenerateHousingInventories(newInventories);
             GenerateRetainerInventories(newInventories);
             GenerateGlamourInventories(newInventories);
             GenerateArmoireInventories(newInventories);
@@ -322,12 +510,12 @@ namespace CriticalCommonLib.Services
                 }
             }
 
-            var oldItemCounts = _itemCounts;
+            var oldItemCounts = _retainerItemCounts;
             GenerateItemCounts();
-            var newItemCounts = _itemCounts;
+            var newItemCounts = _retainerItemCounts;
             var itemChanges = CompareItemCounts(oldItemCounts, newItemCounts);
             GenerateAllItems();
-            Service.Framework.RunOnFrameworkThread(() =>
+            _frameworkService.RunOnFrameworkThread(() =>
             {
                 OnInventoryChanged?.Invoke(_inventories, itemChanges);
             });
@@ -352,7 +540,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag1[index]);
                     newItem.SortedContainer = InventoryType.Bag0;
                     newItem.SortedCategory = InventoryCategory.CharacterBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
 
@@ -363,7 +551,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag2[index]);
                     newItem.SortedContainer = InventoryType.Bag1;
                     newItem.SortedCategory = InventoryCategory.CharacterBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
                 }
@@ -373,7 +561,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag3[index]);
                     newItem.SortedContainer = InventoryType.Bag2;
                     newItem.SortedCategory = InventoryCategory.CharacterBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
                 }
@@ -383,11 +571,11 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag4[index]);
                     newItem.SortedContainer = InventoryType.Bag3;
                     newItem.SortedCategory = InventoryCategory.CharacterBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
                 }
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(InventoryCategory.CharacterBags, sorted);
             }
         }
@@ -407,7 +595,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag1[index]);
                     newItem.SortedContainer = InventoryType.SaddleBag0;
                     newItem.SortedCategory = InventoryCategory.CharacterSaddleBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
 
@@ -418,12 +606,12 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag2[index]);
                     newItem.SortedContainer = InventoryType.SaddleBag1;
                     newItem.SortedCategory = InventoryCategory.CharacterSaddleBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
                 }
 
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(InventoryCategory.CharacterSaddleBags, sorted);
 
             }
@@ -441,7 +629,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag1[index]);
                     newItem.SortedContainer = InventoryType.PremiumSaddleBag0;
                     newItem.SortedCategory = InventoryCategory.CharacterPremiumSaddleBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
 
@@ -452,12 +640,12 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag2[index]);
                     newItem.SortedContainer = InventoryType.PremiumSaddleBag1;
                     newItem.SortedCategory = InventoryCategory.CharacterPremiumSaddleBags;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
                 }
 
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(InventoryCategory.CharacterPremiumSaddleBags, sorted);
             }
         }
@@ -499,7 +687,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(armoryItems[index]);
                     newItem.SortedContainer = inventoryType.Convert();
                     newItem.SortedCategory = InventoryCategory.CharacterArmoryChest;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     if(gearSets.ContainsKey(newItem.ItemId))
                     {
@@ -518,7 +706,7 @@ namespace CriticalCommonLib.Services
                     sorted.Add(newItem);
                 }
             }
-            newInventories[Service.ClientState.LocalContentId]
+            newInventories[_characterMonitor.LocalContentId]
                 .Add(InventoryCategory.CharacterArmoryChest, sorted);
         }
 
@@ -535,21 +723,23 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(bag1[index]);
                     newItem.SortedContainer = InventoryType.GearSet0;
                     newItem.SortedCategory = InventoryCategory.CharacterEquipped;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted.Add(newItem);
 
                 }
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(InventoryCategory.CharacterEquipped, sorted);
             }
         }
 
         private void GenerateFreeCompanyInventories(Dictionary<ulong, Dictionary<InventoryCategory, List<InventoryItem>>> newInventories)
         {
-            var freeCompanyItems = _inventories.ContainsKey(Service.ClientState.LocalContentId)
-                ? _inventories[Service.ClientState.LocalContentId].ContainsKey(InventoryCategory.FreeCompanyBags)
-                    ? _inventories[Service.ClientState.LocalContentId][InventoryCategory.FreeCompanyBags].ToList()
+            if (_characterMonitor.ActiveFreeCompanyId == 0) return;
+            
+            var freeCompanyItems = _inventories.ContainsKey(_characterMonitor.ActiveFreeCompanyId)
+                ? _inventories[_characterMonitor.ActiveFreeCompanyId].ContainsKey(InventoryCategory.FreeCompanyBags)
+                    ? _inventories[_characterMonitor.ActiveFreeCompanyId][InventoryCategory.FreeCompanyBags].ToList()
                     : new List<InventoryItem>()
                 : new List<InventoryItem>();
             
@@ -571,7 +761,7 @@ namespace CriticalCommonLib.Services
 
                 inventoryLoaded = true;
                 var inventoryCategory = inventoryType.Convert().ToInventoryCategory();
-                freeCompanyItems.RemoveAll(c => c.Container == inventoryType.Convert());
+                freeCompanyItems.RemoveAll(c => c.SortedContainer == inventoryType.Convert());
                 var items = _inventoryScanner.GetInventoryByType(inventoryType);
 
                 for (var index = 0; index < items.Length; index++)
@@ -579,7 +769,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(items[index]);
                     newItem.SortedContainer = inventoryType.Convert();
                     newItem.SortedCategory = inventoryCategory;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.ActiveFreeCompanyId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     freeCompanyItems.Add(newItem);
                 }
@@ -587,10 +777,137 @@ namespace CriticalCommonLib.Services
 
             if (inventoryLoaded)
             {
-                newInventories[Service.ClientState.LocalContentId]
+                if (!newInventories.ContainsKey(_characterMonitor.ActiveFreeCompanyId))
+                {
+                    newInventories.Add(_characterMonitor.ActiveFreeCompanyId, new Dictionary<InventoryCategory, List<InventoryItem>>());
+                }
+                newInventories[_characterMonitor.ActiveFreeCompanyId]
                     .Add(InventoryCategory.FreeCompanyBags, freeCompanyItems);
             }
         }
+
+        private Dictionary<InventoryCategory, HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType>> _housingMap =
+            new()
+            {
+                {InventoryCategory.HousingInteriorItems, new HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType>()
+                {
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems1,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems2,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems3,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems4,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems5,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems6,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems7,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorPlacedItems8
+                }},
+                {InventoryCategory.HousingInteriorAppearance, new HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType>()
+                {
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorAppearance
+                }},
+                {InventoryCategory.HousingInteriorStoreroom, new HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType>()
+                {
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom1,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom2,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom3,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom4,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom5,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom6,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom7,
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingInteriorStoreroom8
+                }},
+                {InventoryCategory.HousingExteriorItems, new HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType>()
+                {
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingExteriorPlacedItems
+                }},
+                {InventoryCategory.HousingExteriorAppearance, new HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType>()
+                {
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingExteriorAppearance
+                }},
+                {InventoryCategory.HousingExteriorStoreroom, new HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType>()
+                {
+                    FFXIVClientStructs.FFXIV.Client.Game.InventoryType.HousingExteriorStoreroom
+                }},
+            };
+
+        private void GenerateHousingInventories(Dictionary<ulong, Dictionary<InventoryCategory, List<InventoryItem>>> newInventories)
+        {
+            if (_characterMonitor.ActiveHouseId == 0) return;
+            var house = _characterMonitor.GetCharacterById(_characterMonitor.ActiveHouseId);
+            if (house == null)
+            {
+                return;
+            }
+
+            var plotSize = house.GetPlotSize();
+
+            foreach (var housingMap in _housingMap)
+            {
+                var totalMaxItems = 100;
+                switch (housingMap.Key)
+                {
+                    case InventoryCategory.HousingInteriorItems:
+                    case InventoryCategory.HousingInteriorStoreroom:                    
+                        totalMaxItems = plotSize.GetInternalSlots();
+                        break;
+                    case InventoryCategory.HousingExteriorItems:
+                    case InventoryCategory.HousingExteriorStoreroom:                    
+                        totalMaxItems = plotSize.GetExternalSlots();
+                        break;
+                    
+                }
+                var housingItems = _inventories.ContainsKey(_characterMonitor.ActiveHouseId)
+                    ? _inventories[_characterMonitor.ActiveHouseId].ContainsKey(housingMap.Key)
+                        ? _inventories[_characterMonitor.ActiveHouseId][housingMap.Key].ToList()
+                        : new List<InventoryItem>()
+                    : new List<InventoryItem>();
+
+                HashSet<FFXIVClientStructs.FFXIV.Client.Game.InventoryType> inventoryTypes = housingMap.Value;
+                var inventoryLoaded = false;
+                var totalItems = 0;
+                foreach (var inventoryType in inventoryTypes)
+                {
+                    if (!_inventoryScanner.InMemory.Contains(inventoryType))
+                    {
+                        continue;
+                    }
+
+                    inventoryLoaded = true;
+                    var inventoryCategory = inventoryType.Convert().ToInventoryCategory();
+                    housingItems.RemoveAll(c => c.SortedContainer == inventoryType.Convert());
+                    var items = _inventoryScanner.GetInventoryByType(inventoryType);
+
+                    for (var index = 0; index < items.Length; index++)
+                    {
+                        var inventoryItem = items[index];
+                        if (totalItems >= totalMaxItems)
+                        {
+                            break;
+                        }
+
+                        var newItem = InventoryItem.FromMemoryInventoryItem(inventoryItem);
+                        newItem.SortedContainer = inventoryType.Convert();
+                        newItem.SortedCategory = inventoryCategory;
+                        newItem.RetainerId = _characterMonitor.ActiveHouseId;
+                        newItem.SortedSlotIndex = index;
+                        housingItems.Add(newItem);
+                        totalItems++;
+                    }
+                }
+
+                if (inventoryLoaded)
+                {
+                    if (!newInventories.ContainsKey(_characterMonitor.ActiveHouseId))
+                    {
+                        newInventories.Add(_characterMonitor.ActiveHouseId,
+                            new Dictionary<InventoryCategory, List<InventoryItem>>());
+                    }
+
+                    newInventories[_characterMonitor.ActiveHouseId]
+                        .Add(housingMap.Key, housingItems);
+                }
+            }
+        }
+        
         private unsafe void GenerateRetainerInventories(Dictionary<ulong, Dictionary<InventoryCategory, List<InventoryItem>>> newInventories)
         {
             var currentRetainer = _characterMonitor.ActiveRetainer;
@@ -685,7 +1002,7 @@ namespace CriticalCommonLib.Services
                     newItem.SortedContainer = InventoryType.Armoire;
                     newItem.SortedCategory = InventoryCategory.Armoire;
                     newItem.Container = InventoryType.Armoire;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted[inventoryCategory].Add(newItem);
                 }
@@ -693,7 +1010,7 @@ namespace CriticalCommonLib.Services
 
             foreach (var category in sorted)
             {
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(category.Key, category.Value);
             }
         }
@@ -723,7 +1040,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(items[index]);
                     newItem.SortedContainer = inventoryType.Convert();
                     newItem.SortedCategory = inventoryCategory;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted[inventoryCategory].Add(newItem);
                 }
@@ -731,7 +1048,7 @@ namespace CriticalCommonLib.Services
             
             foreach (var category in sorted)
             {
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(category.Key, category.Value);
             }
         }
@@ -761,7 +1078,7 @@ namespace CriticalCommonLib.Services
                     var newItem = InventoryItem.FromMemoryInventoryItem(items[index]);
                     newItem.SortedContainer = inventoryType.Convert();
                     newItem.SortedCategory = inventoryCategory;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     newItem.SortedSlotIndex = newItem.Slot;
                     sorted[inventoryCategory].Add(newItem);
                 }
@@ -769,7 +1086,7 @@ namespace CriticalCommonLib.Services
             
             foreach (var category in sorted)
             {
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(category.Key, category.Value);
             }
         }
@@ -803,14 +1120,14 @@ namespace CriticalCommonLib.Services
                     newItem.Spiritbond = 0;
                     newItem.SortedContainer = InventoryType.GlamourChest;
                     newItem.SortedCategory = inventoryCategory;
-                    newItem.RetainerId = Service.ClientState.LocalContentId;
+                    newItem.RetainerId = _characterMonitor.LocalContentId;
                     sorted[inventoryCategory].Add(newItem);
                 }
             }
             
             foreach (var category in sorted)
             {
-                newInventories[Service.ClientState.LocalContentId]
+                newInventories[_characterMonitor.LocalContentId]
                     .Add(category.Key, category.Value);
             }
         }
@@ -846,13 +1163,19 @@ namespace CriticalCommonLib.Services
             Dispose (true);
         }
 
-        public struct ItemChanges
+        public class ItemChanges
         {
             public List<ItemChangesItem> NewItems;
             public List<ItemChangesItem> RemovedItems;
+
+            public ItemChanges(List<ItemChangesItem> newItems, List<ItemChangesItem> removedItems)
+            {
+                NewItems = newItems;
+                RemovedItems = removedItems;
+            }
         }
 
-        public struct ItemChangesItem
+        public class ItemChangesItem
         {
             public int Quantity;
             public uint ItemId;

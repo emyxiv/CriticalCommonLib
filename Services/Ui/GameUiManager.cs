@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-using System.Security;
 using CriticalCommonLib.Helpers;
 using Dalamud.Hooking;
 using Dalamud.Logging;
@@ -10,7 +9,7 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace CriticalCommonLib.Services.Ui
 {
-    public unsafe class GameUiManager : IDisposable
+    public unsafe class GameUiManager : IGameUiManager
     {
         public delegate void* AddonOnUpdateDelegate(AtkUnitBase* atkUnitBase, NumberArrayData** nums, StringArrayData** strings);
         public delegate void* AddonOnSetup(AtkUnitBase* atkUnitBase, void* a2, void* a3);

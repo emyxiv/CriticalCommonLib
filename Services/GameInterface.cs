@@ -4,7 +4,6 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using CriticalCommonLib.Models;
 using CriticalCommonLib.Sheets;
-using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
@@ -15,33 +14,59 @@ using FFXIVClientStructs.FFXIV.Component.GUI;
 
 namespace CriticalCommonLib.Services
 {
-    public unsafe class GameInterface : IDisposable
+    public unsafe class GameInterface : IGameInterface
     {
         public delegate void AcquiredItemsUpdatedDelegate();
 
         public event AcquiredItemsUpdatedDelegate? AcquiredItemsUpdated;
 
-        private delegate void SearchForItemByGatheringMethodDelegate(AgentInterface* agent, ushort itemId);
-        private readonly SearchForItemByGatheringMethodDelegate _searchForItemByGatheringMethod;
+        delegate byte GetIsGatheringItemGatheredDelegate(ushort item);
+        
+        [Signature("48 89 5C 24 ?? 57 48 83 EC 20 8B D9 8B F9")]
+        GetIsGatheringItemGatheredDelegate GetIsGatheringItemGathered;
 
         public GameInterface()
         {
-            if(Service.Scanner.TryScanText("E8 ?? ?? ?? ?? EB 63 48 83 F8 ??", out var searchForItemByGatheringMethodPtr))
+            SignatureHelper.Initialise(this);
+        }
+        
+        public bool IsGatheringItemGathered(uint gatheringItemId) => GetIsGatheringItemGathered((ushort)gatheringItemId) != 0;
+
+        public bool? IsItemGathered(uint itemId)
+        {
+            if (Service.ExcelCache.ItemGatheringItem.ContainsKey(itemId))
             {
-                _searchForItemByGatheringMethod = Marshal.GetDelegateForFunctionPointer<SearchForItemByGatheringMethodDelegate>(searchForItemByGatheringMethodPtr);
+                foreach (var gatheringItem in Service.ExcelCache.ItemGatheringItem[itemId])
+                {
+                    if (IsGatheringItemGathered(gatheringItem))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
-            else
-            {
-                PluginLog.LogError("Signature for search for item by gathering method failed.");
-            }
+            return null;
         }
 
         public void OpenGatheringLog(uint itemId)
         {
             var itemIdShort = (ushort)(itemId % 500_000);
-            var agent =
-                Framework.Instance()->GetUiModule()->GetAgentModule()->GetAgentByInternalId(AgentId.GatheringNote);
-            _searchForItemByGatheringMethod.Invoke(agent, itemIdShort);
+            AgentGatheringNote* agent = (AgentGatheringNote*)Framework.Instance()->GetUiModule()->GetAgentModule()->GetAgentByInternalId(AgentId.GatheringNote);
+            if (agent != null)
+            {
+                agent->OpenGatherableByItemId(itemIdShort);
+            }
+        }
+
+        public void OpenFishingLog(uint itemId, bool isSpearfishing)
+        {
+            var itemIdShort = (ushort)(itemId % 500_000);
+            var agent = (AgentFishGuide*)Framework.Instance()->GetUiModule()->GetAgentModule()->GetAgentByInternalId(AgentId.FishGuide);
+            if (agent != null)
+            {
+                agent->OpenForItemId(itemIdShort, isSpearfishing);
+            }
         }
 
         public HashSet<uint> AcquiredItems { get; set; } = new();

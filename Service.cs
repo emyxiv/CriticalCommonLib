@@ -1,4 +1,5 @@
-﻿using CriticalCommonLib.Services;
+﻿using System;
+using CriticalCommonLib.Services;
 using Dalamud.Data;
 using Dalamud.Game;
 using Dalamud.Game.ClientState;
@@ -32,6 +33,28 @@ namespace CriticalCommonLib
         [PluginService] public static TargetManager Targets { get; private set; } = null!;
         [PluginService] public static ToastGui Toasts { get; private set; } = null!;
         [PluginService] public static GameNetwork Network { get; private set; } = null!;
+        public static FrameworkService FrameworkService { get; set; } = null!;
         public static ExcelCache ExcelCache { get; set; } = null!;
+
+        public static void Dereference()
+        {
+            Interface = null;
+            Chat = null;
+            ClientState = null;
+            Commands = null;
+            Condition = null;
+            Data = null;
+            Framework = null;
+            Gui = null;
+            KeyState = null;
+            LibcFunction = null;
+            Objects = null;
+            Scanner = null;
+            Targets = null;
+            Toasts = null;
+            Network = null;
+            FrameworkService = null;
+            ExcelCache = null;
+        }
     }
 }

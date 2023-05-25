@@ -14,7 +14,7 @@ namespace CriticalCommonLib.Services
         const ushort XOR16 = 0x7373;
         const uint XOR32 = 0x73737373;
         
-        CharacterMonitor _characterMonitor;
+        ICharacterMonitor _characterMonitor;
         private SemaphoreSlim? _semaphoreSlim;
         private FileSystemWatcher? _odrWatcher;
         private string? _odrPath;
@@ -36,7 +36,7 @@ namespace CriticalCommonLib.Services
 
         public event SortOrderChangedDelegate? OnSortOrderChanged; 
 
-        public OdrScanner(CharacterMonitor monitor)
+        public OdrScanner(ICharacterMonitor monitor)
         {
             _characterMonitor = monitor;
             _characterMonitor.OnCharacterUpdated += CharacterMonitorOnOnCharacterUpdated;
@@ -152,7 +152,7 @@ namespace CriticalCommonLib.Services
                 if (sortOrder != null)
                 {
                     _sortOrder = sortOrder;
-                    Service.Framework.RunOnTick(() => { OnSortOrderChanged?.Invoke(sortOrder.Value); });
+                    Service.Framework.RunOnTick(() => { OnSortOrderChanged?.Invoke(sortOrder); });
                     PluginLog.Debug(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Itemodr reparsed");
                 }
                 else

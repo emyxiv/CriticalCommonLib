@@ -4,7 +4,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>        
-        <LangVersion>9.0</LangVersion>        
+        <LangVersion>latest</LangVersion>        
         <Configurations>Debug;Release;FullDebug</Configurations>        
         <Platforms>AnyCPU</Platforms>        
         <Nullable>enable</Nullable>
@@ -51,6 +51,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="Dalamud.ContextMenu" Version="1.2.2" />
       <PackageReference Include="NaturalSort.Extension" Version="3.2.0" />
       <PackageReference Include="SerialQueue" Version="2.1.0" />
       <PackageReference Include="System.Reactive" Version="5.0.0" />

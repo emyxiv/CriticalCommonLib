@@ -3,22 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using CriticalCommonLib.Enums;
-using CriticalCommonLib.Helpers;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Memory;
+using Dalamud.Memory.Exceptions;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using Lumina.Data.Parsing;
 
 namespace CriticalCommonLib.Services
 {
-    public class TooltipService : IDisposable
+    public class TooltipService : IDisposable, ITooltipService
     {
-        public static Dictionary<ItemTooltipField, IntPtr> ItemStringPointers = new();
-        public static Dictionary<ActionTooltipField, IntPtr> ActionStringPointers = new();
         private List<TooltipTweak> _tooltipTweaks = new();
 
         public void AddTooltipTweak(TooltipTweak tooltipTweak)
@@ -28,7 +25,7 @@ namespace CriticalCommonLib.Services
 
         public abstract class TooltipTweak
         {
-
+            public abstract bool IsEnabled { get; }
             protected static unsafe ItemTooltipFieldVisibility GetTooltipVisibility(int** numberArrayData)
             {
                 return (ItemTooltipFieldVisibility)(*(*(numberArrayData + 4) + 4));
@@ -55,52 +52,41 @@ namespace CriticalCommonLib.Services
             protected static unsafe SeString? GetTooltipString(StringArrayData* stringArrayData,
                 ActionTooltipField field) => GetTooltipString(stringArrayData, (int)field);
 
-            protected static unsafe SeString? GetTooltipString(StringArrayData* stringArrayData, int field)
-            {
-                try
-                {
-                    var stringAddress = new IntPtr(stringArrayData->StringArray[field]);
-                    return stringAddress == IntPtr.Zero ? null : MemoryHelper.ReadSeStringNullTerminated(stringAddress);
-                }
-                catch
-                {
-                    return null;
+        protected static unsafe SeString? GetTooltipString(StringArrayData* stringArrayData, int field) {
+            try {
+                if (stringArrayData->AtkArrayData.Size <= field) 
+                    throw new IndexOutOfRangeException($"Attempted to get Index#{field} ({field}) but size is only {stringArrayData->AtkArrayData.Size}");
+
+                var stringAddress = new IntPtr(stringArrayData->StringArray[field]);
+                return stringAddress == IntPtr.Zero ? null : MemoryHelper.ReadSeStringNullTerminated(stringAddress);
+            } catch (Exception ex) {
+                PluginLog.Error(ex.Message);
+                return new SeString();
+            }
+        }
+
+            protected static unsafe void SetTooltipString(StringArrayData* stringArrayData, ItemTooltipField field, SeString seString) {
+                try {
+                    seString ??= new SeString();
+
+                    var bytes = seString.Encode().ToList();
+                    bytes.Add(0);
+                    stringArrayData->SetValue((int)field, bytes.ToArray(), false, true, false);
+                } catch (Exception ex) {
+                    throw;
                 }
             }
 
-            protected static unsafe void SetTooltipString(StringArrayData* stringArrayData, ItemTooltipField field,
-                SeString seString)
-            {
-                try
-                {
-                    if (!ItemStringPointers.ContainsKey(field))
-                        ItemStringPointers.Add(field, Marshal.AllocHGlobal(4096));
-                    var bytes = seString.Encode();
-                    Marshal.Copy(bytes, 0, ItemStringPointers[field], bytes.Length);
-                    Marshal.WriteByte(ItemStringPointers[field], bytes.Length, 0);
-                    stringArrayData->StringArray[(int)field] = (byte*)ItemStringPointers[field];
-                }
-                catch
-                {
-                    //
-                }
-            }
 
-            protected static unsafe void SetTooltipString(StringArrayData* stringArrayData, ActionTooltipField field,
-                SeString seString)
-            {
-                try
-                {
-                    if (!ActionStringPointers.ContainsKey(field))
-                        ActionStringPointers.Add(field, Marshal.AllocHGlobal(4096));
-                    var bytes = seString.Encode();
-                    Marshal.Copy(bytes, 0, ActionStringPointers[field], bytes.Length);
-                    Marshal.WriteByte(ActionStringPointers[field], bytes.Length, 0);
-                    stringArrayData->StringArray[(int)field] = (byte*)ActionStringPointers[field];
-                }
-                catch
-                {
-                    //
+            protected static unsafe void SetTooltipString(StringArrayData* stringArrayData, ActionTooltipField field, SeString seString) {
+                try {
+                    seString ??= new SeString();
+                
+                    var bytes = seString.Encode().ToList();
+                    bytes.Add(0);
+                    stringArrayData->SetValue((int)field, bytes.ToArray(), false, true, false);
+                } catch {
+                    throw;
                 }
             }
 
@@ -145,7 +131,8 @@ namespace CriticalCommonLib.Services
         }
 
         public static readonly HoveredActionDetail HoveredAction = new HoveredActionDetail();
-        private void ActionHoveredDetour(ulong a1, int a2, uint a3, int a4, byte a5) {
+
+        public void ActionHoveredDetour(ulong a1, int a2, uint a3, int a4, byte a5) {
             HoveredAction.Category = a2;
             HoveredAction.Id = a3;
             HoveredAction.Unknown3 = a4;
@@ -153,7 +140,7 @@ namespace CriticalCommonLib.Services
             actionHoveredHook?.Original(a1, a2, a3, a4, a5);
         }
 
-        private unsafe IntPtr ActionTooltipDetour(AtkUnitBase* addon, void* a2, ulong a3) {
+        public unsafe IntPtr ActionTooltipDetour(AtkUnitBase* addon, void* a2, ulong a3) {
             var retVal = actionTooltipHook.Original(addon, a2, a3);
             try {
                 foreach (var t in _tooltipTweaks) {
@@ -171,7 +158,7 @@ namespace CriticalCommonLib.Services
             
         public static InventoryItem HoveredItem { get; private set; }
 
-        private unsafe byte ItemHoveredDetour(IntPtr a1, IntPtr* a2, int* containerid, ushort* slotid, IntPtr a5, uint slotidint, IntPtr a7) {
+        public unsafe byte ItemHoveredDetour(IntPtr a1, IntPtr* a2, int* containerid, ushort* slotid, IntPtr a5, uint slotidint, IntPtr a7) {
             var returnValue = itemHoveredHook.Original(a1, a2, containerid, slotid, a5, slotidint, a7);
             HoveredItem = *(InventoryItem*) (a7);
             return returnValue;
@@ -192,14 +179,6 @@ namespace CriticalCommonLib.Services
             actionHoveredHook?.Dispose();
             generateItemTooltipHook?.Dispose();
             generateActionTooltipHook?.Dispose();
-            foreach (var i in ItemStringPointers.Values) {
-                Marshal.FreeHGlobal(i);
-            }
-            foreach (var i in ActionStringPointers.Values) {
-                Marshal.FreeHGlobal(i);
-            }
-            ItemStringPointers.Clear();
-            ActionStringPointers.Clear();
         }
 
         //Track the last item they hovered, if they have nothing hovered and goto hover something, it'll fire twice, otherwise it'll fire once

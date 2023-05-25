@@ -1,4 +1,5 @@
 using CriticalCommonLib.Interfaces;
+using Dalamud.Utility;
 using Lumina;
 using Lumina.Data;
 using Lumina.Excel;
@@ -12,8 +13,7 @@ namespace CriticalCommonLib.Sheets
         {
             base.PopulateData(parser, gameData, language);
             MapEx = new LazyRow< MapEx >( gameData, Map.Row, language );
-            PlaceName = Map.Value!.PlaceName;
-
+            PlaceNameEx = MapEx.Value!.PlaceNameEx;
         }
         
         public LazyRow< MapEx > MapEx { get; set; }
@@ -39,7 +39,7 @@ namespace CriticalCommonLib.Sheets
             {
                 if (MapEx.Value != null)
                 {
-                    return MapEx.Value.ToMapCoordinate3d(X, MapEx.Value.OffsetX);
+                    return MapUtil.ConvertWorldCoordXZToMapCoord(X, MapEx.Value.SizeFactor, MapEx.Value.OffsetX);
                 }
 
                 return 0;
@@ -56,7 +56,7 @@ namespace CriticalCommonLib.Sheets
             {
                 if (MapEx.Value != null)
                 {
-                    return MapEx.Value.ToMapCoordinate3d(Z, MapEx.Value.OffsetY);
+                    return MapUtil.ConvertWorldCoordXZToMapCoord(Z, MapEx.Value.SizeFactor, MapEx.Value.OffsetY);
                 }
 
                 return 0;
@@ -68,6 +68,6 @@ namespace CriticalCommonLib.Sheets
             return FormattedName;
         }
 
-        public LazyRow<PlaceName> PlaceName { get; set; }
+        public LazyRow<PlaceNameEx> PlaceNameEx { get; set; }
     }
 }

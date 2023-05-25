@@ -2,7 +2,7 @@ using CriticalCommonLib.Sheets;
 
 namespace CriticalCommonLib.Models
 {
-    public struct ItemSource
+    public class ItemSource : IItemSource
     {
         //TODO: Turn me into an interface so you can have dutysource, itemsource, desynthsource, etc
         private string _name;
@@ -30,10 +30,16 @@ namespace CriticalCommonLib.Models
 
         public uint? Count => _count;
 
+        private string? _formattedName;
+
         public string FormattedName
         {
             get
             {
+                if (_formattedName != null)
+                {
+                    return _formattedName;
+                }
                 var name = Name;
                 if (Count != null)
                 {
@@ -45,8 +51,11 @@ namespace CriticalCommonLib.Models
                     name += " - " + ItemId;
                 }
                 #endif
-                return name;
+                _formattedName = name;
+                return _formattedName;
             }
         }
+
+        public bool CanOpen => true;
     }
 }

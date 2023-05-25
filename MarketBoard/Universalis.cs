@@ -10,14 +10,13 @@ using System.Net;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Threading;
-using System.Threading.Tasks;
 using CriticalCommonLib.Extensions;
 #pragma warning disable 8618
 
 namespace CriticalCommonLib.MarketBoard
 {
 
-    public class Universalis
+    public class Universalis : IUniversalis
     {
         private SerialQueue _apiRequestQueue = new SerialQueue();
         private List<IDisposable> _disposables = new List<IDisposable>();
