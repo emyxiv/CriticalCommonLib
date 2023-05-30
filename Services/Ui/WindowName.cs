@@ -44,7 +44,7 @@ namespace CriticalCommonLib.Services.Ui
         HousingEditInterior,
         
         FreeCompany,
-        FreeCompanyCreditShop
+        FreeCompanyCreditShop,
 
         MiragePrismMiragePlate,
     }
