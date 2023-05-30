@@ -42,6 +42,9 @@ namespace CriticalCommonLib.Services.Ui
         HousingGoods,//Interior and Exterior placement window for housing items
         HousingEditExterior,
         HousingEditInterior,
+        
+        FreeCompany,
+        FreeCompanyCreditShop
 
         MiragePrismMiragePlate,
     }

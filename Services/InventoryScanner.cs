@@ -113,7 +113,7 @@ namespace CriticalCommonLib.Services
             {
                 _loadedInventories.RemoveWhere(c => c is InventoryType.FreeCompanyPage1 or InventoryType.FreeCompanyPage2
                     or InventoryType.FreeCompanyPage3 or InventoryType.FreeCompanyPage4 or InventoryType.FreeCompanyPage5
-                    or InventoryType.FreeCompanyCrystals or InventoryType.FreeCompanyGil);
+                    or InventoryType.FreeCompanyCrystals or InventoryType.FreeCompanyGil or (InventoryType)Enums.InventoryType.FreeCompanyCurrency);
             }
         }
         
@@ -259,6 +259,18 @@ namespace CriticalCommonLib.Services
                     InMemory.Remove(InventoryType.HousingInteriorAppearance);
                 }
             }
+            if (windowName is WindowName.FreeCompany or WindowName.FreeCompanyCreditShop && isWindowVisible.HasValue)
+            {
+                if (isWindowVisible.Value)
+                {
+                    _loadedInventories.Add((InventoryType)Enums.InventoryType.FreeCompanyCurrency);
+                }
+                else
+                {
+                    _loadedInventories.Remove((InventoryType)Enums.InventoryType.FreeCompanyCurrency);
+                    InMemory.Remove((InventoryType)Enums.InventoryType.FreeCompanyCurrency);
+                }
+            }
         }
 
 
@@ -323,7 +335,7 @@ namespace CriticalCommonLib.Services
                     var containerInfo = NetworkDecoder.DecodeContainerInfo(ptr);
                     if (Enum.IsDefined(typeof(InventoryType), containerInfo.containerId))
                     {
-                        PluginLog.Debug("Container update " + containerInfo.containerId.ToString());
+                        PluginLog.Verbose("Container update " + containerInfo.containerId.ToString());
                         var inventoryType = (InventoryType)containerInfo.containerId;
                         //Delay just in case the items haven't loaded.
                         Service.Framework.RunOnTick(() =>
@@ -523,6 +535,8 @@ namespace CriticalCommonLib.Services
                     return FreeCompanyBag5;
                 case InventoryType.FreeCompanyGil:
                     return FreeCompanyGil;
+                case (InventoryType)Enums.InventoryType.FreeCompanyCurrency:
+                    return FreeCompanyCurrency;
                 case InventoryType.HousingInteriorStoreroom1:
                     return HousingInteriorStoreroom1;
                 case InventoryType.HousingInteriorStoreroom2:
@@ -565,9 +579,9 @@ namespace CriticalCommonLib.Services
                     return HousingExteriorStoreroom;
                 case InventoryType.FreeCompanyCrystals:
                     return FreeCompanyCrystals;
-                case (InventoryType)2500:
+                case (InventoryType)Enums.InventoryType.Armoire:
                     return Armoire;
-                case (InventoryType)2501:
+                case (InventoryType)Enums.InventoryType.GlamourChest:
                     return GlamourChest;
             }
 
@@ -613,6 +627,7 @@ namespace CriticalCommonLib.Services
                 Array.Clear(FreeCompanyBag5);
                 Array.Clear(FreeCompanyCrystals);
                 Array.Clear(FreeCompanyGil);
+                Array.Clear(FreeCompanyCurrency);
             }
         }
 
@@ -652,6 +667,7 @@ namespace CriticalCommonLib.Services
             Array.Clear(FreeCompanyBag5);
             Array.Clear(FreeCompanyGil);
             Array.Clear(FreeCompanyCrystals);
+            Array.Clear(FreeCompanyCurrency);
             Array.Clear(Armoire);
             Array.Clear(GlamourChest);
             RetainerBag1.Clear();
@@ -731,6 +747,7 @@ namespace CriticalCommonLib.Services
         public InventoryItem[] FreeCompanyBag4 { get; } = new InventoryItem[50];
         public InventoryItem[] FreeCompanyBag5 { get; } = new InventoryItem[50];
         public InventoryItem[] FreeCompanyGil { get; } = new InventoryItem[11];
+        public InventoryItem[] FreeCompanyCurrency { get; } = new InventoryItem[1];
         public InventoryItem[] FreeCompanyCrystals { get; } = new InventoryItem[18];
 
         public InventoryItem[] HousingInteriorStoreroom1 { get; } = new InventoryItem[50];
@@ -1453,6 +1470,27 @@ namespace CriticalCommonLib.Services
                     }
                 }
             }
+
+            if (_loadedInventories.Contains((InventoryType)Enums.InventoryType.FreeCompanyCurrency))
+            {
+                var atkDataHolder = Framework.Instance()->GetUiModule()->GetRaptureAtkModule()->AtkModule
+                    .AtkArrayDataHolder;
+                var fcHolder = atkDataHolder.GetNumberArrayData(49);
+                var fcCredit = fcHolder->IntArray[9];
+                var fakeCreditItem = new InventoryItem();
+                fakeCreditItem.ItemID = 80;
+                fakeCreditItem.Container = (InventoryType)Enums.InventoryType.FreeCompanyCurrency;
+                fakeCreditItem.Quantity = (uint)fcCredit;
+                fakeCreditItem.Slot = 0;
+                fakeCreditItem.Flags = InventoryItem.ItemFlags.None;
+                InMemory.Add((InventoryType)Enums.InventoryType.FreeCompanyCurrency);
+                if (fakeCreditItem.HashCode() != FreeCompanyCurrency[0].HashCode())
+                {
+                    FreeCompanyCurrency[0] = fakeCreditItem;
+                    changeSet.Add(new BagChange(fakeCreditItem,
+                        (InventoryType)Enums.InventoryType.FreeCompanyCurrency));
+                }
+            }
         }
 
         public unsafe void ParseArmoire(InventorySortOrder currentSortOrder, List<BagChange> changeSet)
@@ -1463,7 +1501,7 @@ namespace CriticalCommonLib.Services
                 return;
             }
             if (!uiState->Cabinet.IsCabinetLoaded()) return;
-            InMemory.Add((InventoryType)2500);
+            InMemory.Add((InventoryType)Enums.InventoryType.Armoire);
 
             var index = 0;
             foreach (var row in Service.ExcelCache.GetCabinetSheet())
@@ -1479,7 +1517,7 @@ namespace CriticalCommonLib.Services
                 {
                     Armoire[index] = armoireItem;
                     //Push a custom inventory type
-                    changeSet.Add(new BagChange(armoireItem, (InventoryType)2500));
+                    changeSet.Add(new BagChange(armoireItem, (InventoryType)Enums.InventoryType.Armoire));
                 }
 
                 index++;
@@ -1512,7 +1550,7 @@ namespace CriticalCommonLib.Services
             _glamourAgentActive = true;
             _glamourAgentOpened = null;
             
-            InMemory.Add((InventoryType)2501);
+            InMemory.Add((InventoryType)Enums.InventoryType.GlamourChest);
 
             var itemsStart = *(IntPtr*)((IntPtr)dresserAgent + 40) + 40;
             if (itemsStart == IntPtr.Zero) return;
@@ -1538,7 +1576,7 @@ namespace CriticalCommonLib.Services
                 {
                     GlamourChest[i] = glamourItem;
                     //Push a custom inventory type
-                    changeSet.Add(new BagChange(glamourItem, (InventoryType)2501));
+                    changeSet.Add(new BagChange(glamourItem, (InventoryType)Enums.InventoryType.GlamourChest));
                 }
             }
         }
