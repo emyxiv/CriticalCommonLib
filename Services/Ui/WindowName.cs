@@ -32,6 +32,7 @@ namespace CriticalCommonLib.Services.Ui
         ArmouryBoard,
         FreeCompanyChest,
         MiragePrismPrismBox,
+        MiragePrismMiragePlate,
         Cabinet,
         CabinetWithdraw,
         
@@ -45,7 +46,7 @@ namespace CriticalCommonLib.Services.Ui
         
         FreeCompany,
         FreeCompanyCreditShop,
-
-        MiragePrismMiragePlate,
+        SelectIconString,
+        Shop,
     }
 }

@@ -5,19 +5,17 @@ using Lumina;
 using Lumina.Data;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
-using LuminaSupplemental.Excel.Model;
 
 namespace CriticalCommonLib.Sheets;
 
 public class AirshipExplorationPointEx : AirshipExplorationPoint
 {
-    private bool _unlockCalculated = false;
     private AirshipUnlockEx? _airshipUnlockEx;
 
     public AirshipUnlockEx? AirshipUnlockEx => _airshipUnlockEx;
     
-    public List<LazyRow<ItemEx>> Drops; 
-    public LazyRow<AirshipExplorationPointEx> UnlockPointEx;
+    public List<LazyRow<ItemEx>> Drops = null!; 
+    public LazyRow<AirshipExplorationPointEx> UnlockPointEx = null!;
 
     private string? _formattedName;
     
@@ -55,10 +53,14 @@ public class AirshipExplorationPointEx : AirshipExplorationPoint
         _airshipUnlockEx = Service.ExcelCache.GetAirshipUnlock(RowId);
 
         Drops = new List<LazyRow<ItemEx>>();
-        var drops = Service.ExcelCache.AirshipDrops.Where(c => c.AirshipExplorationPointId == RowId).ToList();
-        foreach (var drop in drops)
+
+        if (Service.ExcelCache.AirshipDrops != null)
         {
-            Drops.Add(new LazyRow<ItemEx>(gameData, drop.ItemId, language));
+            var drops = Service.ExcelCache.AirshipDrops.Where(c => c.AirshipExplorationPointId == RowId).ToList();
+            foreach (var drop in drops)
+            {
+                Drops.Add(new LazyRow<ItemEx>(gameData, drop.ItemId, language));
+            }
         }
 
         if (_airshipUnlockEx != null)

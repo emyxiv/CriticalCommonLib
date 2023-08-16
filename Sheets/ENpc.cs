@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Collections;
 using CriticalCommonLib.Interfaces;
-using Lumina.Excel.GeneratedSheets;
 
 namespace CriticalCommonLib.Sheets
 {
@@ -42,8 +41,9 @@ namespace CriticalCommonLib.Sheets
         }
         #endregion
         
-        public bool IsVendor => Service.ExcelCache.ENpcCollection.FindShops(this) != null;
-        public List<IShop>? Shops => Service.ExcelCache.ENpcCollection.FindShops(this)?.Select(c => Service.ExcelCache.ShopCollection.Get(c)).Where(c => c != null).Select(c => c!).ToList();
+        public bool IsVendor => Service.ExcelCache.ENpcCollection?.FindShops(this) != null;
+        public bool IsHouseVendor => Service.ExcelCache.GetHouseVendor(this.Key) != null;
+        public List<IShop>? Shops => Service.ExcelCache.ENpcCollection?.FindShops(this)?.Select(c => Service.ExcelCache.ShopCollection?.Get(c)).Where(c => c != null).Select(c => c!).ToList();
 
 
         public override string ToString() {

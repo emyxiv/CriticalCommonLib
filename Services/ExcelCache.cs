@@ -17,8 +17,8 @@ namespace CriticalCommonLib.Services
 {
     public partial class ExcelCache : IDisposable
     {
-        private readonly DataManager? _dataManager;
-        private readonly GameData? _gameData;
+        private DataManager? _dataManager;
+        private GameData? _gameData;
         
         private Dictionary<uint, EventItem> _eventItemCache;
         private Dictionary<uint, ItemUICategory> _itemUiCategory;
@@ -26,154 +26,160 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, ItemSortCategory> _itemSortCategory;
         private Dictionary<uint, EquipSlotCategory> _equipSlotCategories;
         private Dictionary<uint, EquipRaceCategory> _equipRaceCategories;
-        private Dictionary<uint, RecipeEx> _recipeCache;
+        private ConcurrentDictionary<uint, RecipeEx>? _recipeCache;
         private Dictionary<uint, HashSet<uint>> _classJobCategoryLookup;
         private readonly HashSet<uint> _armoireItems;
         private bool _itemUiCategoriesFullyLoaded;
         private bool _itemUiSearchFullyLoaded;
         private bool _recipeLookUpCalculated;
-        private bool _companyCraftSequenceCalculated;
+        private bool _hwdCrafterSupplyLookupCalculated;
         private bool _classJobCategoryLookupCalculated;
         private bool _craftLevesItemLookupCalculated;
         private bool _armoireLoaded;
-        private ENpcCollection _eNpcCollection;
-        private ShopCollection _shopCollection;
+        private ENpcCollection? _eNpcCollection;
+        private ShopCollection? _shopCollection;
+
+        public ConcurrentDictionary<string, Dictionary<uint, List<uint>>> OneToManyCache =
+            new ConcurrentDictionary<string, Dictionary<uint, List<uint>>>();
+
+        public ConcurrentDictionary<string, Dictionary<uint, uint>> OneToOneCache =
+            new ConcurrentDictionary<string, Dictionary<uint, uint>>();
 
         /// <summary>
         ///     Dictionary of each gc scrip shop and it's associated gc scrip shop items
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> GcScripShopItemToGcScripCategories { get; private set; }
+        public Dictionary<uint, HashSet<uint>> GcScripShopItemToGcScripCategories { get; private set; } = null!;
 
-        
+
         /// <summary>
         ///     Dictionary of each gc scrip shop category and it's associated grand company
         /// </summary>
-        public Dictionary<uint, uint> GcScripShopCategoryGrandCompany { get; private set; }
+        public Dictionary<uint, uint> GcScripShopCategoryGrandCompany { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each gc ID matched to a gc shop 
         /// </summary>
-        public Dictionary<uint, uint> GcShopGrandCompany { get; private set; }
+        public Dictionary<uint, uint> GcShopGrandCompany { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of gc scrip shop items and their associated items
         /// </summary>
-        public Dictionary<(uint, uint), uint> GcScripShopToItem { get; private set; }
+        public Dictionary<(uint, uint), uint> GcScripShopToItem { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of item IDs and associated scrip shop items
         /// </summary>
-        public Dictionary<uint, HashSet<(uint, uint)>> ItemGcScripShopLookup { get; private set; }
+        public Dictionary<uint, HashSet<(uint, uint)>> ItemGcScripShopLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of item IDs and associated fcc shops
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> ItemFccShopLookup { get; private set; }
+        public Dictionary<uint, HashSet<uint>> ItemFccShopLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of gil shop IDs and their associated item IDs
         /// </summary>
-        public Dictionary<uint,HashSet<uint>> GilShopItemLookup { get; private set; }
+        public Dictionary<uint,HashSet<uint>> GilShopItemLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of item IDs and their associated gil shop IDs
         /// </summary>
-        public Dictionary<uint,HashSet<uint>> ItemGilShopLookup { get; private set; }
+        public Dictionary<uint,HashSet<uint>> ItemGilShopLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of gil shop IDs and their associated gil shop item ids
         /// </summary>
-        public Dictionary<uint,HashSet<uint>> GilShopGilShopItemLookup { get; private set; }
+        public Dictionary<uint,HashSet<uint>> GilShopGilShopItemLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of item IDs and their associated special shop IDs where the item is the result
         /// </summary>
-        public Dictionary<uint,HashSet<uint>> ItemSpecialShopResultLookup { get; private set; }
+        public Dictionary<uint,HashSet<uint>> ItemSpecialShopResultLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of item IDs and their associated special shop IDs where the item is the cost
         /// </summary>
-        public Dictionary<uint,HashSet<uint>> ItemSpecialShopCostLookup { get; private set; }
+        public Dictionary<uint,HashSet<uint>> ItemSpecialShopCostLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of all reward items and their associated cost items(currencies)
         /// </summary>
-        public Dictionary<uint,HashSet<(uint,uint)>> SpecialShopItemRewardCostLookup { get; private set; }
+        public Dictionary<uint,HashSet<(uint,uint)>> SpecialShopItemRewardCostLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of all special shop cost items and their associated reward items(currencies)
         /// </summary>
-        public Dictionary<uint,HashSet<(uint,uint)>> SpecialShopItemCostRewardLookup { get; private set; }
+        public Dictionary<uint,HashSet<(uint,uint)>> SpecialShopItemCostRewardLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of item IDs and their associated gathering item IDs
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> ItemGatheringItem { get; private set; }
-        
-        /// <summary>
-        ///     Dictionary of item IDs and it's associated gathering types 
-        /// </summary>
-        public Dictionary<uint, HashSet<uint>> ItemGatheringTypes { get; private set; }
+        public Dictionary<uint, HashSet<uint>> ItemGatheringItem { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each gathering item and it's associated points
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> GatheringItemToGatheringItemPoint { get; private set; }
+        public Dictionary<uint, HashSet<uint>> GatheringItemToGatheringItemPoint { get; private set; } = null!;
 
         /// <summary>
         ///     Dictionary of each gathering item point and it's associated gathering point base
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> GatheringItemPointToGatheringPointBase  { get; private set; }
+        public Dictionary<uint, HashSet<uint>> GatheringItemPointToGatheringPointBase  { get; private set; } = null!;
 
         /// <summary>
         ///     Dictionary of each gathering item point and it's associated gathering point base
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> GatheringPointBaseToGatheringPoint  { get; private set; }
-
-        /// <summary>
-        ///     Dictionary of each gathering item base to it's gathering type
-        /// </summary>
-        public Dictionary<uint, uint> GatheringPointBaseToGatheringType { get; private set; }
+        public Dictionary<uint, HashSet<uint>> GatheringPointBaseToGatheringPoint  { get; private set; } = null!;
 
         /// <summary>
         ///     Dictionary of each item and it's associated aquarium fish(if applicable)
         /// </summary>
-        public Dictionary<uint, uint> ItemToAquariumFish { get; private set; }
+        public Dictionary<uint, uint> ItemToAquariumFish { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each result item when handing in an inspection item for HWD and it's required items + amount
         /// </summary>
-        public Dictionary<uint, (uint, uint)> HwdInspectionResults { get; private set; }
+        public Dictionary<uint, (uint, uint)> HwdInspectionResults { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of all the shops referenced in the topic select sheet and their associated actual shop ids
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> ShopToShopCollectionLookup { get; private set; }
+        public Dictionary<uint, HashSet<uint>> ShopToShopCollectionLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each item and it's related fish parameter
         /// </summary>
-        public Dictionary<uint, uint> FishParameters { get; private set; }
+        public Dictionary<uint, uint> FishParameters { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each tomestone ID and it's related item
         /// </summary>
-        public Dictionary<uint, uint> TomestoneLookup { get; private set; }
+        public Dictionary<uint, uint> TomestoneLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each inclusion shop and it's categories
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> InclusionShopToCategoriesLookup { get; private set; }
+        public Dictionary<uint, HashSet<uint>> InclusionShopToCategoriesLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each inclusion shop category and it's associated shop
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> InclusionShopCategoryToShopLookup { get; private set; }
+        public Dictionary<uint, HashSet<uint>> InclusionShopCategoryToShopLookup { get; private set; } = null!;
         
         /// <summary>
         ///     Dictionary of each inclusion shop category and it's associated shop series
         /// </summary>
-        public Dictionary<uint, HashSet<uint>> InclusionShopCategoryToShopSeriesLookup { get; private set; }
+        public Dictionary<uint, HashSet<uint>> InclusionShopCategoryToShopSeriesLookup { get; private set; } = null!;
+        
+        /// <summary>
+        ///     Dictionary of each company craft sequence by it's result item
+        /// </summary>
+        public Dictionary<uint, uint> CompanyCraftSequenceByResultItemIdLookup { get; private set; } = null!;
+        
+        /// <summary>
+        ///     Dictionary of each item by it's company craft sequence id
+        /// </summary>
+        public Dictionary<uint, uint> ItemIdToCompanyCraftSequenceLookup { get; private set; } = null!;
 
         public Dictionary<uint, uint> ItemToCabinetCategory
         {
@@ -263,9 +269,9 @@ namespace CriticalCommonLib.Services
             set => _eventItemCache = value;
         }
 
-        public Dictionary<uint, RecipeEx> RecipeCache
+        public ConcurrentDictionary<uint, RecipeEx> RecipeCache
         {
-            get => _recipeCache ?? new Dictionary<uint, RecipeEx>();
+            get => _recipeCache ??= new ConcurrentDictionary<uint, RecipeEx>();
             set => _recipeCache = value;
         }
 
@@ -280,37 +286,57 @@ namespace CriticalCommonLib.Services
 
         //Dictionary of every item that an item can craft
         public Dictionary<uint, HashSet<uint>> CraftLookupTable { get; set; }
-
         public Dictionary<uint, string> AddonNames { get; set; }
-
         public Dictionary<uint, uint> CraftLevesItemLookup { get; set; }
-
-        public Dictionary<uint, uint> CompanyCraftSequenceByResultItemIdLookup { get; set; }
-        
-        public List<DungeonBoss> DungeonBosses { get; set; } 
-        public List<DungeonBossDrop> DungeonBossDrops { get; set; } 
-        public List<DungeonBossChest> DungeonBossChests { get; set; } 
-        public List<ItemSupplement> ItemSupplements { get; set; }
-        public List<SubmarineDrop> SubmarineDrops { get; set; }
-        public List<AirshipDrop> AirshipDrops { get; set; }
-        public List<DungeonChestItem> DungeonChestItems { get; set; }
-        public List<DungeonDrop> DungeonDrops { get; set; }
-        public List<DungeonChest> DungeonChests { get; set; }
-        public List<MobSpawnPositionEx> MobSpawns { get; set; }
-        public List<ENpcPlaceEx> ENpcPlaces { get; set; }
-        public List<ENpcShop> ENpcShops { get; set; }
-        public List<ShopName> ShopNames { get; set; }
-        public List<AirshipUnlockEx> AirshipUnlocks { get; set; }
-        public List<SubmarineUnlockEx> SubmarineUnlocks { get; set; }
-        public List<ItemPatch> ItemPatches { get; set; }
-        public List<RetainerVentureItemEx> RetainerVentureItems { get; set; }
-        public List<StoreItem> StoreItems { get; set; }
-        public List<MobDropEx> MobDrops { get; set; }
+        public Dictionary<uint, uint> HWDCrafterSupplyByItemIdLookup { get; set; }
+        public List<DungeonBoss>? DungeonBosses { get; set; }
+        public List<DungeonBossDrop>? DungeonBossDrops { get; set; }
+        public List<DungeonBossChest>? DungeonBossChests { get; set; }
+        public List<ItemSupplement>? ItemSupplements { get; set; }
+        public List<SubmarineDrop>? SubmarineDrops { get; set; }
+        public List<AirshipDrop>? AirshipDrops { get; set; }
+        public List<DungeonChestItem>? DungeonChestItems { get; set; }
+        public List<DungeonDrop>? DungeonDrops { get; set; }
+        public List<DungeonChest>? DungeonChests { get; set; }
+        public List<MobSpawnPositionEx>? MobSpawns { get; set; }
+        public List<ENpcPlaceEx>? ENpcPlaces { get; set; }
+        public List<ENpcShop>? ENpcShops { get; set; }
+        public List<ShopName>? ShopNames { get; set; }
+        public List<AirshipUnlockEx>? AirshipUnlocks { get; set; }
+        public List<SubmarineUnlockEx>? SubmarineUnlocks { get; set; }
+        public List<ItemPatch>? ItemPatches { get; set; }
+        public List<RetainerVentureItemEx>? RetainerVentureItems { get; set; }
+        public List<StoreItem>? StoreItems { get; set; }
+        public List<MobDropEx>? MobDrops { get; set; }
+        public List<HouseVendor>? HouseVendors { get; set; }
 
         private Dictionary<uint, List<ItemSupplement>>? _sourceSupplements;
         private Dictionary<uint, List<ItemSupplement>>? _useSupplements;
+        private Dictionary<uint, HouseVendor>? _houseVendors;
+        public HouseVendor? GetHouseVendor(uint eNpcResidentId)
+        {
+            if (HouseVendors == null)
+            {
+                return null;
+            }
+            if (_houseVendors == null)
+            {
+                _houseVendors = HouseVendors.ToDictionary(c => c.ENpcResidentId, c => c);
+            }
+
+            if (_houseVendors.ContainsKey(eNpcResidentId))
+            {
+                return _houseVendors[eNpcResidentId];
+            }
+
+            return null;
+        }
         public List<ItemSupplement>? GetSupplementSources(uint sourceItemId)
         {
+            if (ItemSupplements == null)
+            {
+                return null;
+            }
             if (_sourceSupplements == null)
             {
                 _sourceSupplements = ItemSupplements.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -325,6 +351,10 @@ namespace CriticalCommonLib.Services
         }
         public List<ItemSupplement>? GetSupplementUses(uint useItemId)
         {
+            if (ItemSupplements == null)
+            {
+                return null;
+            }
             if (_useSupplements == null)
             {
                 _useSupplements = ItemSupplements.GroupBy(c => c.SourceItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -342,6 +372,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<SubmarineDrop>>? _submarineDrops;
         public List<SubmarineDrop>? GetSubmarineDrops(uint itemId)
         {
+            if (SubmarineDrops == null)
+            {
+                return null;
+            }
             if (_submarineDrops == null)
             {
                 _submarineDrops = SubmarineDrops.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -358,6 +392,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<AirshipDrop>>? _airshipDrops;
         public List<AirshipDrop>? GetAirshipDrops(uint itemId)
         {
+            if (AirshipDrops == null)
+            {
+                return null;
+            }
             if (_airshipDrops == null)
             {
                 _airshipDrops = AirshipDrops.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -374,6 +412,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<DungeonChestItem>>? _dungeonChestItems;
         public List<DungeonChestItem>? GetDungeonChestItems(uint itemId)
         {
+            if (DungeonChestItems == null)
+            {
+                return null;
+            }
             if (_dungeonChestItems == null)
             {
                 _dungeonChestItems = DungeonChestItems.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -390,6 +432,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, DungeonChest>? _dungeonChests;
         public DungeonChest? GetDungeonChest(uint chestId)
         {
+            if (DungeonChests == null)
+            {
+                return null;
+            }
             if (_dungeonChests == null)
             {
                 _dungeonChests = DungeonChests.ToDictionary(c => c.RowId, c => c);
@@ -406,6 +452,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, DungeonBoss>? _dungeonBosses;
         public DungeonBoss? GetDungeonBoss(uint bossId)
         {
+            if (DungeonBosses == null)
+            {
+                return null;
+            }
             if (_dungeonBosses == null)
             {
                 _dungeonBosses = DungeonBosses.ToDictionary(c => c.RowId, c => c);
@@ -419,11 +469,15 @@ namespace CriticalCommonLib.Services
             return null;
         }
 
-        private decimal currentPatch = new decimal(6.4); 
+        private decimal currentPatch = new decimal(6.45); 
         private Dictionary<uint, decimal>? _itemPatches;
 
         public decimal GetItemPatch(uint itemId)
         {
+            if (ItemPatches == null)
+            {
+                return 0;
+            }
             if (_itemPatches == null)
             {
                 _itemPatches = ItemPatch.ToItemLookup(ItemPatches);
@@ -435,6 +489,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<DungeonBossDrop>>? _dungeonBossDrops;
         public List<DungeonBossDrop>? GetDungeonBossDrops(uint itemId)
         {
+            if (DungeonBossDrops == null)
+            {
+                return null;
+            }
             if (_dungeonBossDrops == null)
             {
                 _dungeonBossDrops = DungeonBossDrops.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -451,6 +509,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<DungeonBossChest>>? _dungeonBossChests;
         public List<DungeonBossChest>? GetDungeonBossChests(uint itemId)
         {
+            if (DungeonBossChests == null)
+            {
+                return null;
+            }
             if (_dungeonBossChests == null)
             {
                 _dungeonBossChests = DungeonBossChests.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -467,6 +529,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<DungeonDrop>>? _dungeonDrops;
         public List<DungeonDrop>? GetDungeonDrops(uint itemId)
         {
+            if (DungeonDrops == null)
+            {
+                return null;
+            }
             if (_dungeonDrops == null)
             {
                 _dungeonDrops = DungeonDrops.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -483,6 +549,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<MobDropEx>>? _mobDrops;
         public List<MobDropEx>? GetMobDrops(uint itemId)
         {
+            if (MobDrops == null)
+            {
+                return null;
+            }
             if (_mobDrops == null)
             {
                 _mobDrops = MobDrops.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -499,6 +569,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<MobSpawnPositionEx>>? _mobSpawns;
         public List<MobSpawnPositionEx>? GetMobSpawns(uint bNpcNameId)
         {
+            if (MobSpawns == null)
+            {
+                return null;
+            }
             if (_mobSpawns == null)
             {
                 _mobSpawns = MobSpawns.GroupBy(c => c.BNpcNameId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -515,6 +589,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<StoreItem>>? _itemStoreItems;
         public List<StoreItem>? GetItemsByStoreItem(uint itemId)
         {
+            if (StoreItems == null)
+            {
+                return null;
+            }
             if (_itemStoreItems == null)
             {
                 _itemStoreItems = StoreItems.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -527,11 +605,60 @@ namespace CriticalCommonLib.Services
 
             return null;
         }
+        
+        public Dictionary<uint, string>? _itemNamesById = null;
+        
+        public Dictionary<uint, string> ItemNamesById
+        {
+            get
+            {
+                if (_itemNamesById == null)
+                {
+                    _itemNamesById = Service.ExcelCache.GetItemExSheet().ToDictionary(c => c.RowId, c => c.NameString);
+                }
+                return _itemNamesById;
+            }
+            set => _itemNamesById = value;
+        }
+        
+        public Dictionary<uint, string>? _territoryNamesById = null;
+        
+        public Dictionary<uint, string> TerritoryNamesById
+        {
+            get
+            {
+                if (_territoryNamesById == null)
+                {
+                    _territoryNamesById = Service.ExcelCache.GetTerritoryTypeExSheet().Where(c => c.TerritoryIntendedUse is 0 or 1 or 13 or 14).ToDictionary(c => c.RowId, c => c.FormattedName);
+                }
+                return _territoryNamesById;
+            }
+            set => _territoryNamesById = value;
+        }
+        
+        public Dictionary<string, uint>? _itemsByName = null;
+        
+        public Dictionary<string, uint> ItemsByName
+        {
+            get
+            {
+                if (_itemsByName == null)
+                {
+                    _itemsByName = Service.ExcelCache.GetItemExSheet().DistinctBy(c => c.NameString).ToDictionary(c => c.NameString, c => c.RowId);
+                }
+                return _itemsByName;
+            }
+            set => _itemsByName = value;
+        }
 
 
         private Dictionary<uint, List<ENpcPlaceEx>>? _eNpcPlaces;
         public List<ENpcPlaceEx>? GetENpcPlaces(uint eNpcResidentId)
         {
+            if (ENpcPlaces == null)
+            {
+                return null;
+            }
             if (_eNpcPlaces == null)
             {
                 _eNpcPlaces = ENpcPlaces.GroupBy(c => c.ENpcResidentId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -548,6 +675,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, ShopName>? _shopNames;
         public ShopName? GetShopName(uint shopId)
         {
+            if (ShopNames == null)
+            {
+                return null;
+            }
             if (_shopNames == null)
             {
                 _shopNames = ShopNames.ToDictionary(c => c.ShopId, c => c);
@@ -564,6 +695,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<ENpcShop>>? _eNpcShops;
         public List<ENpcShop>? GetENpcShops(uint eNpcId)
         {
+            if (ENpcShops == null)
+            {
+                return null;
+            }
             if (_eNpcShops == null)
             {
                 _eNpcShops = ENpcShops.GroupBy(c => c.ENpcResidentId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -580,6 +715,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, AirshipUnlockEx>? _airshipUnlocks;
         public AirshipUnlockEx? GetAirshipUnlock(uint airshipPointId)
         {
+            if (AirshipUnlocks == null)
+            {
+                return null;
+            }
             if (_airshipUnlocks == null)
             {
                 _airshipUnlocks = AirshipUnlocks.ToDictionary(c => c.AirshipExplorationPointId, c => c);
@@ -596,6 +735,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, SubmarineUnlockEx>? _submarineUnlocks;
         public SubmarineUnlockEx? GetSubmarineUnlock(uint submarinePointId)
         {
+            if (SubmarineUnlocks == null)
+            {
+                return null;
+            }
             if (_submarineUnlocks == null)
             {
                 _submarineUnlocks = SubmarineUnlocks.ToDictionary(c => c.SubmarineExplorationId, c => c);
@@ -612,6 +755,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<RetainerVentureItemEx>>? _retainerVentureItems;
         public List<RetainerVentureItemEx>? GetRetainerVentureItems(uint retainerTaskRandomId)
         {
+            if (RetainerVentureItems == null)
+            {
+                return null;
+            }
             if (_retainerVentureItems == null)
             {
                 _retainerVentureItems = RetainerVentureItems.GroupBy(c => c.RetainerTaskRandomId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -628,6 +775,10 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, List<RetainerVentureItemEx>>? _itemRetainerVentures;
         public List<RetainerVentureItemEx>? GetItemRetainerVentures(uint itemId)
         {
+            if (RetainerVentureItems == null)
+            {
+                return null;
+            }
             if (_itemRetainerVentures == null)
             {
                 _itemRetainerVentures = RetainerVentureItems.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
@@ -669,7 +820,7 @@ namespace CriticalCommonLib.Services
                 GenerateItemRetainerTaskLookup();
             }
 
-            if (_itemRetainerTasks.ContainsKey(itemId))
+            if (_itemRetainerTasks!.ContainsKey(itemId))
             {
                 return _itemRetainerTasks[itemId];
             }
@@ -683,7 +834,7 @@ namespace CriticalCommonLib.Services
                 GenerateItemRetainerTaskLookup();
             }
 
-            if (_itemRetainerTypes.ContainsKey(itemId))
+            if (_itemRetainerTypes!.ContainsKey(itemId))
             {
                 return _itemRetainerTypes[itemId];
             }
@@ -720,8 +871,8 @@ namespace CriticalCommonLib.Services
             }
         }
 
-        public ENpcCollection ENpcCollection => _eNpcCollection;
-        public ShopCollection ShopCollection => _shopCollection;
+        public ENpcCollection? ENpcCollection => _loadNpcs ? _eNpcCollection ??= new ENpcCollection() : null;
+        public ShopCollection? ShopCollection => _loadShops ? _shopCollection ??= new ShopCollection() : null;
 
         public string GetAddonName(uint addonId)
         {
@@ -767,7 +918,6 @@ namespace CriticalCommonLib.Services
             _itemSortCategory = new Dictionary<uint, ItemSortCategory>();
             _equipSlotCategories = new Dictionary<uint, EquipSlotCategory>();
             _equipRaceCategories = new Dictionary<uint, EquipRaceCategory>();
-            _recipeCache = new Dictionary<uint, RecipeEx>();
             _classJobCategoryLookup = new Dictionary<uint, HashSet<uint>>();
             _armoireItems = new HashSet<uint>();
             flattenedRecipes = new Dictionary<uint, Dictionary<uint, uint>>();
@@ -789,7 +939,7 @@ namespace CriticalCommonLib.Services
             GatheringPoints = new Dictionary<uint, GatheringPoint>();
             GatheringPointsTransients = new Dictionary<uint, GatheringPointTransient>();
             RecipeLookupTable = new Dictionary<uint, HashSet<uint>>();
-            RecipeCache = new Dictionary<uint, RecipeEx>();
+            RecipeCache = new ConcurrentDictionary<uint, RecipeEx>();
             ClassJobCategoryLookup = new Dictionary<uint, HashSet<uint>>();
             CraftLevesItemLookup = new Dictionary<uint, uint>();
             _itemUiCategoriesFullyLoaded = false;
@@ -798,7 +948,6 @@ namespace CriticalCommonLib.Services
             _classJobCategoryLookupCalculated = false;
             _itemUiSearchFullyLoaded = false;
             _recipeLookUpCalculated = false;
-            _companyCraftSequenceCalculated = false;
             _craftLevesItemLookupCalculated = false;
             _armoireLoaded = false;
         }
@@ -807,24 +956,50 @@ namespace CriticalCommonLib.Services
 
         public Language Language => GameData.Options.DefaultExcelLanguage;
 
-        public ExcelCache(DataManager dataManager) : this()
+        /// <summary>
+        /// Creates a new instance of ExcelCache
+        /// </summary>
+        /// <param name="dataManager">An instance of Dalamuds DataManager</param>
+        /// <param name="loadCsvs">Should LuminaSupplemental CSV sheets be loaded by default?</param>
+        /// <param name="loadNpcs">Should NPC locations be calculated on boot(these cannot be loaded later as of yet)</param>
+        /// <param name="loadShops">Should shop locations be calculated on boot(these cannot be loaded later as of yet)</param>
+        public ExcelCache(DataManager dataManager, bool loadCsvs = true, bool loadNpcs = true, bool loadShops = true) : this()
         {
             _dataManager = dataManager;
             Service.ExcelCache = this;
-            LoadCsvs();
-            //RetainerTaskEx.Run(() => RetainerTaskEx.Run(CalculateLookups));
-            CalculateLookups();
+            _loadNpcs = loadNpcs;
+            _loadShops = loadShops;
+            if (loadCsvs)
+            {
+                LoadCsvs();
+            }
+
+            CalculateLookups(loadNpcs, loadShops);
         }
 
-        public ExcelCache(GameData gameData) : this()
+        /// <summary>
+        /// Creates a new instance of ExcelCache
+        /// </summary>
+        /// <param name="gameData">An instance of luminas GameData</param>
+        /// <param name="loadCsvs">Should LuminaSupplemental CSV sheets be loaded by default?</param>
+        /// <param name="loadNpcs">Should NPC locations be calculated on boot(these cannot be loaded later as of yet)</param>
+        /// <param name="loadShops">Should shop locations be calculated on boot(these cannot be loaded later as of yet)</param>
+        public ExcelCache(GameData gameData, bool loadCsvs = true, bool loadNpcs = true, bool loadShops = true) : this()
         {
             _gameData = gameData;
             Service.ExcelCache = this;
-            //Need to fix this, basically stop the entire loading of the plugin until it's done then fire an event
-            LoadCsvs();
-            CalculateLookups();
-            //RetainerTaskEx.Run(() => RetainerTaskEx.Run(CalculateLookups));
+            _loadNpcs = loadNpcs;
+            _loadShops = loadShops;
+            if(loadCsvs)
+            {
+                LoadCsvs();
+            }
+            CalculateLookups(loadNpcs, loadShops);
         }
+
+        private bool _loadShops;
+        private bool _loadNpcs;
+        
         
         private void LoadCsvs()
         {
@@ -847,6 +1022,7 @@ namespace CriticalCommonLib.Services
             ItemPatches = LoadCsv<ItemPatch>(CsvLoader.ItemPatchResourceName, "Item Patches");
             RetainerVentureItems = LoadCsv<RetainerVentureItemEx>(CsvLoader.RetainerVentureItemResourceName, "Retainer Ventures");
             StoreItems = LoadCsv<StoreItem>(CsvLoader.StoreItemResourceName, "SQ Store Items");
+            HouseVendors = LoadCsv<HouseVendor>(CsvLoader.HouseVendorResourceName, "House Vendors");
         }
 
         private List<T> LoadCsv<T>(string resourceName, string title) where T : ICsv, new()
@@ -871,11 +1047,25 @@ namespace CriticalCommonLib.Services
 
             return new List<T>();
         }
+
+        public void PreCacheItemData()
+        {
+            foreach (var item in AllItems)
+            {
+                var sources = item.Value.Sources;
+                var uses = item.Value.Uses;
+            }
+
+        }
         
         public bool FinishedLoading { get; private set; }
+        
+        public int CabinetSize { get; private set; }
+        public int GlamourChestSize { get; private set; } = 800;
 
-        private void CalculateLookups()
+        private void CalculateLookups(bool loadNpcs, bool loadShops)
         {
+            CabinetSize = GetCabinetSheet().Count();
             GcScripShopCategoryGrandCompany = GetSheet<GCScripShopCategory>().ToSingleLookup(c => c.RowId, c => c.GrandCompany.Row);
             GcShopGrandCompany = GetSheet<GCShop>().ToSingleLookup(c => c.GrandCompany.Row, c => c.RowId);
             GcScripShopItemToGcScripCategories = GetSheet<GCScripShopItem>().ToColumnLookup(c => c.RowId, c => c.SubRowId);
@@ -889,14 +1079,10 @@ namespace CriticalCommonLib.Services
                 GetSheet<GilShopItem>().ToColumnLookup(c => c.RowId, c => c.SubRowId);
             ItemGatheringItem =
                 GetSheet<GatheringItem>().ToColumnLookup(c => (uint)c.Item, c => c.RowId);
-            ItemGatheringTypes =
-                GetSheet<GatheringPointBase>().ToColumnLookup(c => c.Item, c => c.GatheringType.Row);
             GatheringItemToGatheringItemPoint =
                 GetSheet<GatheringItemPoint>().ToColumnLookup(c => c.RowId, c => c.GatheringPoint.Row);
             GatheringItemPointToGatheringPointBase =
                 GetSheet<GatheringPoint>().ToColumnLookup(c => c.RowId, c => c.GatheringPointBase.Row);
-            GatheringPointBaseToGatheringType =
-                GetSheet<GatheringPointBase>().ToSingleLookup(c => c.RowId, c => c.GatheringType.Row, true, false);
             GatheringPointBaseToGatheringPoint = GetSheet<GatheringPoint>().ToColumnLookup(c => c.GatheringPointBase.Row, c => c.RowId);
             ShopToShopCollectionLookup =
                 GetSheet<TopicSelect>()
@@ -909,6 +1095,8 @@ namespace CriticalCommonLib.Services
                 GetSheet<InclusionShopSeries>().ToColumnLookup(c => c.RowId, c => c.SpecialShop.Row);
             FishParameters = GetSheet<FishParameter>().ToSingleLookup(c => (uint)c.Item, c => c.RowId);
             TomestoneLookup = GetSheet<TomestonesItem>().ToSingleLookup(c => c.RowId, c => c.Item.Row);
+            CompanyCraftSequenceByResultItemIdLookup = GetSheet<CompanyCraftSequence>().ToSingleLookup(c => c.ResultItem.Row, c => c.RowId);
+            ItemIdToCompanyCraftSequenceLookup = GetSheet<CompanyCraftSequence>().ToSingleLookup(c => c.RowId, c => c.ResultItem.Row);
             ItemToAquariumFish = GetSheet<AquariumFish>().ToSingleLookup(c => c.Item.Row, c => c.RowId);
             Dictionary<uint, (uint, uint)> inspectionResults = new Dictionary<uint, (uint, uint)>();
             foreach (var inspection in GetSheet<HWDGathererInspectionEx>())
@@ -928,10 +1116,6 @@ namespace CriticalCommonLib.Services
                 {
                     foreach (var item in listing.Rewards)
                     {
-                        if (item.ItemEx.Row == 34850)
-                        {
-                            var a = "";
-                        }
                         if (!itemSpecialShopResults.ContainsKey(item.ItemEx.Row))
                         {
                             itemSpecialShopResults.Add(item.ItemEx.Row, new HashSet<uint>());
@@ -989,9 +1173,17 @@ namespace CriticalCommonLib.Services
             ItemSpecialShopCostLookup = itemSpecialShopCosts;
             SpecialShopItemRewardCostLookup = specialShopItemRewardCostLookup;
             SpecialShopItemCostRewardLookup = specialShopItemCostRewardLookup;
-                
-            _eNpcCollection = new ENpcCollection();
-            _shopCollection = new ShopCollection();
+
+            if (loadNpcs || loadShops)
+            {
+                _eNpcCollection = new ENpcCollection();
+            }
+
+            if (loadShops)
+            {
+                _shopCollection = new ShopCollection();
+            }
+
             _allItems ??= GetItemExSheet().ToCache();
             FinishedLoading = true;
         }
@@ -1005,10 +1197,8 @@ namespace CriticalCommonLib.Services
             _gatheringItemPointLinksCalculated = false;
             _itemUiSearchFullyLoaded = false;
             _recipeLookUpCalculated = false;
-            _companyCraftSequenceCalculated = false;
             _classJobCategoryLookupCalculated = false;
             _craftLevesItemLookupCalculated = false;
-            _vendorLocationsCalculated = false;
         }
 
         public bool IsItemCraftLeve(uint itemId)
@@ -1039,8 +1229,14 @@ namespace CriticalCommonLib.Services
                         CraftLevesItemLookup.Add((uint)item.Item, craftLeve.RowId);
             }
         }
+
+        public HashSet<Type> LoadedTypes = new HashSet<Type>(); 
         public ExcelSheet<T> GetSheet<T>() where T : ExcelRow
         {
+            if (!LoadedTypes.Contains(typeof(T)))
+            {
+                LoadedTypes.Add(typeof(T));
+            }
             if (_dataManager != null)
                 return _dataManager.Excel.GetSheet<T>()!;
             if (_gameData != null) return _gameData.GetExcelSheet<T>()!;
@@ -1078,6 +1274,7 @@ namespace CriticalCommonLib.Services
                 if (recipe == null) return null;
 
                 RecipeCache[recipeId] = recipe;
+                return recipe;
             }
 
             return RecipeCache[recipeId];
@@ -1104,8 +1301,6 @@ namespace CriticalCommonLib.Services
 
             if (recipes.Count == 0)
             {
-                if (!_companyCraftSequenceCalculated) CalculateCompanyCraftSequenceByResultItemId();
-
                 if (CompanyCraftSequenceByResultItemIdLookup.ContainsKey(itemId))
                 {
                     //Might need to split into parts at some point
@@ -1171,85 +1366,42 @@ namespace CriticalCommonLib.Services
             return flattenedItemRecipeLoop;
         }
 
+        public bool IsIshgardCraft(uint itemId)
+        {
+            if (itemId == 0) return false;
+            if (!_hwdCrafterSupplyLookupCalculated) CalculateHwdCrafterSupplyLookup();
+            return HWDCrafterSupplyByItemIdLookup.ContainsKey(itemId);
+        }
+
+        public uint? GetHWDCrafterSupplyId(uint itemId)
+        {
+            if (itemId == 0) return null;
+            if (!_hwdCrafterSupplyLookupCalculated) CalculateHwdCrafterSupplyLookup();
+            return HWDCrafterSupplyByItemIdLookup.ContainsKey(itemId) ? HWDCrafterSupplyByItemIdLookup[itemId] : null;
+        }
+
+        public void CalculateHwdCrafterSupplyLookup()
+        {
+            Dictionary<uint, uint> crafterSupplyLookup = new Dictionary<uint, uint>();
+            var crafterSupplies = GetSheet<HWDCrafterSupply>();
+            foreach (var crafterSupply in crafterSupplies)
+            {
+                foreach (var item in crafterSupply.ItemTradeIn)
+                {
+                    crafterSupplyLookup.TryAdd(item.Row, crafterSupply.RowId);
+                }
+            }
+
+            HWDCrafterSupplyByItemIdLookup = crafterSupplyLookup;
+
+            _hwdCrafterSupplyLookupCalculated = true;
+        }
+
         public bool IsCompanyCraft(uint itemId)
         {
             if (itemId == 0) return false;
 
-            if (!_companyCraftSequenceCalculated) CalculateCompanyCraftSequenceByResultItemId();
-
             return CompanyCraftSequenceByResultItemIdLookup.ContainsKey(itemId);
-        }
-
-        public CompanyCraftSequence? GetCompanyCraftSequenceByItemId(uint itemId)
-        {
-            if (itemId == 0) return null;
-
-            if (!_companyCraftSequenceCalculated) CalculateCompanyCraftSequenceByResultItemId();
-
-            if (CompanyCraftSequenceByResultItemIdLookup.ContainsKey(itemId))
-                return GetCompanyCraftSequenceSheet()
-                    .GetRow(CompanyCraftSequenceByResultItemIdLookup[itemId]);
-
-            return null;
-        }
-
-        public void CalculateCompanyCraftSequenceByResultItemId()
-        {
-            if (!_companyCraftSequenceCalculated)
-            {
-                _companyCraftSequenceCalculated = true;
-                foreach (var companyCraftSequence in GetCompanyCraftSequenceSheet())
-                    if (!CompanyCraftSequenceByResultItemIdLookup.ContainsKey(companyCraftSequence.ResultItem.Row))
-                        CompanyCraftSequenceByResultItemIdLookup.Add(companyCraftSequence.ResultItem.Row,
-                            companyCraftSequence.RowId);
-            }
-        }
-
-        public void CalculateCompanyCraftSequenceByRequiredItemId()
-        {
-            if (!_companyCraftSequenceCalculated)
-            {
-                _companyCraftSequenceCalculated = true;
-                Dictionary<uint, uint> itemIds = new Dictionary<uint, uint>();
-                foreach (var companyCraftSequence in GetCompanyCraftSequenceSheet())
-                {
-                    var parts = companyCraftSequence.CompanyCraftPart;
-                    foreach (var part in parts)
-                    {
-                        if (part.Value != null)
-                        {
-                            var processes = part.Value.CompanyCraftProcess;
-                            foreach (var process in processes)
-                            {
-                                if (process.Value != null)
-                                {
-                                    var supplyItems = process.Value.UnkData0;
-                                    foreach (var supplyItem in supplyItems)
-                                    {
-                                        var actualItem = GetCompanyCraftSupplyItemSheet()
-                                            .GetRow(supplyItem.SupplyItem);
-                                        if (actualItem != null)
-                                        {
-                                            if (actualItem.Item.Row != 0 && supplyItem.SetQuantity != 0)
-                                            {
-                                                if (!itemIds.ContainsKey(actualItem.Item.Row))
-                                                    itemIds.Add(actualItem.Item.Row, 0);
-
-                                                itemIds[actualItem.Item.Row] += (uint)supplyItem.SetQuantity *
-                                                    supplyItem.SetsRequired;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    //TODO: FINISH ME
-                    //if (!CompanyCraftSequenceByRequiredItemIdLookup.ContainsKey(companyCraftSequence.ResultItem.Row))
-                    //    CompanyCraftSequenceByRequiredItemIdLookup.Add(companyCraftSequence.ResultItem.Row,
-                    //        companyCraftSequence.RowId);
-                }
-            }
         }
 
         public List<Recipe> GetItemRecipes(uint itemId)
@@ -1320,6 +1472,27 @@ namespace CriticalCommonLib.Services
             }
         }
 
+        private Dictionary<(uint, sbyte), uint>? _mapIdByTerritoryTypeAndMapIndex;
+        public uint GetMapIdByTerritoryTypeAndMapIndex(uint territoryTypeId, sbyte mapIndex)
+        {
+            if (_mapIdByTerritoryTypeAndMapIndex == null)
+            {
+                _mapIdByTerritoryTypeAndMapIndex = new Dictionary<(uint, sbyte), uint>();
+                foreach (var map in GetMapSheet())
+                {
+                    _mapIdByTerritoryTypeAndMapIndex.TryAdd((map.TerritoryType.Row, map.MapIndex), map.RowId);
+                }
+            }
+
+            var mapKey = (territoryTypeId, mapIndex);
+            if (_mapIdByTerritoryTypeAndMapIndex.ContainsKey(mapKey))
+            {
+                return _mapIdByTerritoryTypeAndMapIndex[mapKey];
+            }
+
+            return 0;
+        }
+        
         public void CalculateArmoireItems()
         {
             if (!_armoireLoaded)
@@ -1377,6 +1550,37 @@ namespace CriticalCommonLib.Services
                 _classJobCategoryLookup = classJobCategoryMap;
             }
         }
+        
+        public static readonly uint[] HiddenNodes = 
+        {
+            7758,  // Grade 1 La Noscean Topsoil
+            7761,  // Grade 1 Shroud Topsoil   
+            7764,  // Grade 1 Thanalan Topsoil 
+            7759,  // Grade 2 La Noscean Topsoil
+            7762,  // Grade 2 Shroud Topsoil   
+            7765,  // Grade 2 Thanalan Topsoil 
+            10092, // Black Limestone          
+            10094, // Little Worm              
+            10097, // Yafaemi Wildgrass        
+            12893, // Dark Chestnut            
+            15865,  // Firelight Seeds          
+            15866,  // Icelight Seeds           
+            15867,  // Windlight Seeds          
+            15868,  // Earthlight Seeds         
+            15869,  // Levinlight Seeds         
+            15870,  // Waterlight Seeds
+            12534, // Mythrite Ore             
+            12535, // Hardsilver Ore           
+            12537, // Titanium Ore             
+            12579, // Birch Log                
+            12878, // Cyclops Onion            
+            12879, // Emerald Beans            
+        };
+
+        public bool IsItemAvailableAtHiddenNode(uint itemId)
+        {
+            return HiddenNodes.Contains(itemId);
+        }
 
         public bool IsItemAvailableAtTimedNode(uint itemId)
         {
@@ -1408,9 +1612,27 @@ namespace CriticalCommonLib.Services
         
         private void Dispose(bool disposing)
         {
-            if(!_disposed && disposing)
+            if (!_disposed && disposing)
             {
+                var methodInfo = typeof(ExcelModule).GetMethod("RemoveSheetFromCache", new Type[] { typeof(string) });
+                if (methodInfo != null)
+                {
+                    foreach (var type in LoadedTypes)
+                    {
+                        if (type.Namespace != null && type.Namespace == "CriticalCommonLib.Sheets")
+                        {
+                            var excel = GameData.Excel;
+                            
+                            var genericMethod = methodInfo.MakeGenericMethod(type);
+                            var reformattedName = type.Name.ToLower().Replace("ex", "");
+                            genericMethod.Invoke(excel, new object[] { reformattedName });
+                        }
+                    }
+                }
             }
+
+            _gameData = null;
+            _dataManager = null;
             _disposed = true;         
         }
         
@@ -1483,9 +1705,9 @@ namespace CriticalCommonLib.Services
             return _companyCraftSupplyItemSheetEx ??= GetSheet<CompanyCraftSupplyItemEx>();
         }
 
-        public ExcelSheet<ClassJob> GetClassJobSheet()
+        public ExcelSheet<ClassJobEx> GetClassJobSheet()
         {
-            return _classJobSheet ??= GetSheet<ClassJob>();
+            return _classJobSheet ??= GetSheet<ClassJobEx>();
         }
 
         public ExcelSheet<ItemUICategory> GetItemUICategorySheet()
@@ -1588,27 +1810,27 @@ namespace CriticalCommonLib.Services
             return _retainerTaskExSheet ??= GetSheet<RetainerTaskEx>();
         }
         
-        private ExcelSheet<CompanyCraftSequence> GetCompanyCraftSequenceSheet()
+        public ExcelSheet<CompanyCraftSequenceEx> GetCompanyCraftSequenceSheet()
         {
-            return _companyCraftSequenceSheet ??= GetSheet<CompanyCraftSequence>();
+            return _companyCraftSequenceSheet ??= GetSheet<CompanyCraftSequenceEx>();
         }
 
-        private ExcelSheet<GatheringItem> GetGatheringItemSheet()
+        public ExcelSheet<GatheringItem> GetGatheringItemSheet()
         {
             return _gatheringItemSheet ??= GetSheet<GatheringItem>();
         }
 
-        private ExcelSheet<GatheringItemPoint> GetGatheringItemPointSheet()
+        public ExcelSheet<GatheringItemPoint> GetGatheringItemPointSheet()
         {
             return _gatheringItemPointSheet ??= GetSheet<GatheringItemPoint>();
         }
 
-        private ExcelSheet<LevelEx> GetLevelExSheet()
+        public ExcelSheet<LevelEx> GetLevelExSheet()
         {
             return _levelExSheet ??= GetSheet<LevelEx>();
         }
         
-        private ExcelSheet<GatheringPointTransient> GetGatheringPointTransientSheet()
+        public ExcelSheet<GatheringPointTransient> GetGatheringPointTransientSheet()
         {
             return _gatheringPointTransientSheet ??= GetSheet<GatheringPointTransient>();
         }
@@ -1626,6 +1848,16 @@ namespace CriticalCommonLib.Services
         public ExcelSheet<MapEx> GetMapSheet()
         {
             return _mapSheet ??= GetSheet<MapEx>();
+        }
+        
+        public ExcelSheet<MapMarker> GetMapMarkerSheet()
+        {
+            return _mapMarkerSheet ??= GetSheet<MapMarker>();
+        }
+        
+        public ExcelSheet<Aetheryte> GetAetheryteSheet()
+        {
+            return _aetheryteSheet ??= GetSheet<Aetheryte>();
         }
         
         public ExcelSheet<Stain> GetStainSheet()
@@ -1657,6 +1889,21 @@ namespace CriticalCommonLib.Services
         {
             return _contentRouletteSheet ??= GetSheet<ContentRoulette>();
         }
+        
+        public ExcelSheet<HWDCrafterSupplyEx> GetHWDCrafterSupplySheet()
+        {
+            return _hwdCrafterSupplySheet ??= GetSheet<HWDCrafterSupplyEx>();
+        }
+        
+        public ExcelSheet<GCScripShopItemEx> GetGCScripShopItemSheet()
+        {
+            return _gcScripShopItemSheet ??= GetSheet<GCScripShopItemEx>();
+        }
+        
+        public ExcelSheet<CraftTypeEx> GetCraftTypeSheet()
+        {
+            return _craftTypeSheet ??= GetSheet<CraftTypeEx>();
+        }
 
         private ExcelSheet<ItemEx>? _itemExSheet;
         private ExcelSheet<CabinetCategory>? _cabinetCategorySheet;
@@ -1669,7 +1916,7 @@ namespace CriticalCommonLib.Services
         private ExcelSheet<PlaceName>? _placeNameSheet;
         private ExcelSheet<ItemSearchCategory>? _itemSearchCategorySheet;
         private ExcelSheet<ItemUICategory>? _itemUiCategorySheet;
-        private ExcelSheet<ClassJob>? _classJobSheet;
+        private ExcelSheet<ClassJobEx>? _classJobSheet;
         private ExcelSheet<CompanyCraftSupplyItemEx>? _companyCraftSupplyItemSheetEx;
         private ExcelSheet<SpecialShopEx>? _specialShopExSheet;
         private ExcelSheet<GCShopEx>? _gcShopExSheet;
@@ -1681,7 +1928,7 @@ namespace CriticalCommonLib.Services
         private ExcelSheet<LevelEx>? _levelExSheet;
         private ExcelSheet<GatheringItemPoint>? _gatheringItemPointSheet;
         private ExcelSheet<GatheringItem>? _gatheringItemSheet;
-        private ExcelSheet<CompanyCraftSequence>? _companyCraftSequenceSheet;
+        private ExcelSheet<CompanyCraftSequenceEx>? _companyCraftSequenceSheet;
         private ExcelSheet<RetainerTaskNormalEx>? _retainerTaskNormalExSheet;
         private ExcelSheet<RetainerTaskEx>? _retainerTaskExSheet;
         private ExcelSheet<EquipSlotCategoryEx>? _equipSlotCategoryExSheet;
@@ -1696,14 +1943,19 @@ namespace CriticalCommonLib.Services
         private ExcelSheet<UIColor>? _uiColorSheet;
         private ExcelSheet<Race>? _raceSheet;
         private ExcelSheet<MapEx>? _mapSheet;
+        private ExcelSheet<MapMarker>? _mapMarkerSheet;
+        private ExcelSheet<Aetheryte>? _aetheryteSheet;
         private ExcelSheet<Stain>? _stainSheet;
         private ExcelSheet<WorldEx>? _worldSheet;
         private ExcelSheet<ContentFinderConditionEx>? _contentFinderConditionExSheet;
         private ExcelSheet<ContentType>? _contentTypeSheet;
         private ExcelSheet<SubmarineMap>? _submarineMapSheet;
         private ExcelSheet<ContentRoulette>? _contentRouletteSheet;
+        private ExcelSheet<GCScripShopItemEx>? _gcScripShopItemSheet;
         private ExcelSheet<AirshipExplorationPointEx>? _airshipExplorationPointSheet;
         private ExcelSheet<SubmarineExplorationEx>? _submarineExplorationSheetEx;
+        private ExcelSheet<HWDCrafterSupplyEx>? _hwdCrafterSupplySheet;
+        private ExcelSheet<CraftTypeEx>? _craftTypeSheet;
         private Dictionary<uint, uint>? _itemToCabinetCategory;
     }
 }

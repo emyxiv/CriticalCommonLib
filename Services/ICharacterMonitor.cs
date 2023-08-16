@@ -16,7 +16,6 @@ namespace CriticalCommonLib
         event CharacterMonitor.CharacterUpdatedDelegate? OnCharacterUpdated;
         event CharacterMonitor.CharacterRemovedDelegate? OnCharacterRemoved;
         event CharacterMonitor.CharacterJobChangedDelegate? OnCharacterJobChanged;
-        event CharacterMonitor.GilUpdatedDelegate? OnGilUpdated;
         KeyValuePair<ulong, Character>[] GetPlayerCharacters();
         KeyValuePair<ulong, Character>[] GetFreeCompanies();
         KeyValuePair<ulong, Character>[] GetHouses();
@@ -33,9 +32,11 @@ namespace CriticalCommonLib
         public bool IsFreeCompany(ulong characterId);
         public bool IsHousing(ulong characterId);
         public Character? GetCharacterById(ulong characterId);
+        public Character? GetParentCharacterById(ulong characterId);
+        public string GetCharacterNameById(ulong characterId, bool owner = false);
 
         void LoadExistingRetainers(Dictionary<ulong, Character> characters);
-        ulong ActiveRetainer { get; }
+        ulong ActiveRetainerId { get; }
         ulong ActiveCharacterId { get; }
         ulong ActiveHouseId { get; }
         ulong ActiveFreeCompanyId { get; }
@@ -48,6 +49,7 @@ namespace CriticalCommonLib
         public ulong InternalHouseId { get; }
         public Character? ActiveCharacter { get; }
         public Character? ActiveFreeCompany { get; }
+        public Character? ActiveRetainer { get; }
         public bool IsLoggedIn { get; }
         public ulong LocalContentId { get; }
         void OverrideActiveCharacter(ulong activeCharacter);

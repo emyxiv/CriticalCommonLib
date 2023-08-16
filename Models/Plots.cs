@@ -1,5 +1,3 @@
-using System;
-
 namespace CriticalCommonLib.Models
 {
     public enum PlotSize : byte
@@ -207,7 +205,7 @@ namespace CriticalCommonLib.Models
             }
 
             plot = (sbyte)(plot - (division == 2 ? 30 : 0));
-            if (plot > 30)
+            if (plot is >= 30 or < 0)
             {
                 return PlotSize.Unknown;
             }

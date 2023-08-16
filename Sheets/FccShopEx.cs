@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Interfaces;
@@ -14,7 +15,7 @@ namespace CriticalCommonLib.Sheets
         private IEnumerable<LazyRow<ItemEx>> _shopItems = null!;
         private IEnumerable<LazyRow<ItemEx>> _costItems = null!;
         private HashSet<uint> _shopItemIds = null!;
-        private IEnumerable<IShopListing> _shopListings;
+        private IEnumerable<IShopListing> _shopListings = null!;
 
         string IShop.Name  => ToString();
         public IEnumerable<ENpc> ENpcs { get { return _eNpcs ??= BuildENpcs(); } }
@@ -45,6 +46,10 @@ namespace CriticalCommonLib.Sheets
                 _name = shopName != null ? shopName.Name : Name.ToString();
             }
 
+            if (_name == "")
+            {
+                _name = "Unknown Vendor";
+            }
             return _name;
         }
         
@@ -67,7 +72,7 @@ namespace CriticalCommonLib.Sheets
         }
         
         private ENpc[] BuildENpcs() {
-            return Service.ExcelCache.ENpcCollection.FindWithData(RowId).ToArray();
+            return Service.ExcelCache.ENpcCollection?.FindWithData(RowId).ToArray() ?? Array.Empty<ENpc>();
         }
         
         public class Listing : IShopListing {

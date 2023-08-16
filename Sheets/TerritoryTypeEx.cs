@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using Lumina;
 using Lumina.Data;
 using Lumina.Excel;
@@ -15,9 +15,9 @@ namespace CriticalCommonLib.Sheets
             MapEx = new LazyRow<MapEx>(gameData, Map.Row, language);
             PlaceNameEx = new LazyRow<PlaceNameEx>(gameData, PlaceName.Row, language);
         }
-        
-        public LazyRow< MapEx > MapEx { get; set; }
-        public LazyRow< PlaceNameEx > PlaceNameEx { get; set; }
+
+        public LazyRow<MapEx> MapEx { get; set; } = null!;
+        public LazyRow< PlaceNameEx > PlaceNameEx { get; set; } = null!;
 
         private Dictionary<uint, LazyRow<MapEx>>? _layerIndexCache = null;
         
@@ -29,11 +29,34 @@ namespace CriticalCommonLib.Sheets
             {
                 return value;
             }
-            var layerMap = Service.ExcelCache.GetMapSheet()
-                .FirstOrDefault(c => c.TerritoryType.Row == RowId && c.MapIndex == layerIndex, null);
-            //HACK
-            _layerIndexCache[layerIndex] = new LazyRow<MapEx>(Service.ExcelCache.GameData, layerMap?.RowId ?? 0, MapEx.Language);
+            var mapId = Service.ExcelCache.GetMapIdByTerritoryTypeAndMapIndex(RowId, (sbyte)layerIndex);
+            _layerIndexCache[layerIndex] = new LazyRow<MapEx>(Service.ExcelCache.GameData, mapId, MapEx.Language);
             return _layerIndexCache[layerIndex];
         }
+        private string? _formattedName;
+
+        public string FormattedName => _formattedName ??= (PlaceNameEx.Value?.FormattedName ?? "Unknown");
+        private string? _formattedExpandedName;
+        public string FormattedExpandedName
+        {
+            get
+            {
+                if (_formattedExpandedName == null)
+                {
+                    var map = MapEx.Value?.PlaceName.Value?.Name.ToString() ?? "Unknown Map";
+                    var region = MapEx.Value?.PlaceNameRegion.Value?.Name.ToString() ?? "Unknown Territory";
+                    var subArea = MapEx.Value?.PlaceNameSub.Value?.Name.ToString() ?? null;
+                    if (!String.IsNullOrEmpty(subArea))
+                    {
+                        subArea = " - " + subArea;
+                    }
+
+                    _formattedExpandedName = region + " - " + map + (subArea ?? "");
+                }
+
+                return _formattedExpandedName;
+            }
+        }
+
     }
 }

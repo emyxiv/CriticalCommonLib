@@ -5,7 +5,6 @@ using CriticalCommonLib.Sheets;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Logging;
 using Dalamud.Memory;
 using Dalamud.Utility;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -70,6 +69,12 @@ namespace CriticalCommonLib.Models
                 {
                     return AlternativeName ?? HousingName;
                 }
+
+                if (Name.Trim().Length == 0)
+                {
+                    return AlternativeName ?? "Unknown";
+                }
+
                 return AlternativeName ?? Name;
             }
         }
@@ -389,7 +394,7 @@ namespace CriticalCommonLib.Models
                 return false;
             }
 
-            var divisionId = (byte)(housingManager->GetCurrentPlot() > 30 ? 2 : housingManager->GetCurrentDivision());
+            var divisionId = (byte)(housingManager->GetCurrentPlot() >= 30 ? 2 : housingManager->GetCurrentDivision());
             var plotId = housingManager->GetCurrentPlot();
             var roomId = housingManager->GetCurrentRoom();
             var wardId = housingManager->GetCurrentWard();

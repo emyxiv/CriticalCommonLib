@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Interfaces;
@@ -46,7 +47,10 @@ namespace CriticalCommonLib.Sheets
                 var shopName = Service.ExcelCache.GetShopName(RowId);
                 _name = shopName != null ? shopName.Name : Name.ToString();
             }
-
+            if (_name == "")
+            {
+                _name = "Unknown Vendor";
+            }
             return _name;
         }
         
@@ -81,7 +85,7 @@ namespace CriticalCommonLib.Sheets
             return shopListings.ToArray();
         }
         private ENpc[] BuildENpcs() {
-            return Service.ExcelCache.ENpcCollection.FindWithData(RowId).ToArray();
+            return Service.ExcelCache.ENpcCollection?.FindWithData(RowId).ToArray() ?? Array.Empty<ENpc>();;
         }
     }
 

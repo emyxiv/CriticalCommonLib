@@ -1,3 +1,4 @@
+using System;
 using CriticalCommonLib.Interfaces;
 using Dalamud.Utility;
 using Lumina;
@@ -14,18 +15,27 @@ namespace CriticalCommonLib.Sheets
             base.PopulateData(parser, gameData, language);
             MapEx = new LazyRow< MapEx >( gameData, Map.Row, language );
             PlaceNameEx = MapEx.Value!.PlaceNameEx;
+            TerritoryTypeEx = new LazyRow<TerritoryTypeEx>(gameData, Territory.Row, language);
         }
-        
-        public LazyRow< MapEx > MapEx { get; set; }
+
+        public LazyRow<MapEx> MapEx { get; set; } = null!;
+        public LazyRow<TerritoryTypeEx> TerritoryTypeEx { get; set; } = null!;
+        public LazyRow<PlaceNameEx> PlaceNameEx { get; set; } = null!;
+
 
 
         public string FormattedName
         {
             get
             {
-                var map = Map.Value?.PlaceName.Value?.Name.ToString() ?? "Unknown Map";
-                var territory =  Territory.Value?.PlaceNameRegion.Value?.Name.ToString() ?? "Unknown Territory";
-                return map + " - " + territory;
+                var map = MapEx.Value?.PlaceName.Value?.Name.ToString() ?? "Unknown Map";
+                var region =  MapEx.Value?.PlaceNameRegion.Value?.Name.ToString() ?? "Unknown Territory";
+                var subArea =  MapEx.Value?.PlaceNameSub.Value?.Name.ToString() ?? null;
+                if (!String.IsNullOrEmpty(subArea))
+                {
+                    subArea = " - " + subArea;
+                }
+                return region + " - " + map + (subArea ?? "");
             }
         }
 
@@ -67,7 +77,5 @@ namespace CriticalCommonLib.Sheets
         {
             return FormattedName;
         }
-
-        public LazyRow<PlaceNameEx> PlaceNameEx { get; set; }
     }
 }

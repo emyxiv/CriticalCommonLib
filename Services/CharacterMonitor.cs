@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Models;
 using Dalamud.Game;
-using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Logging;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Housing;
@@ -15,7 +14,7 @@ namespace CriticalCommonLib
     {
         private Dictionary<ulong, Character> _characters;
         
-        private ulong _activeRetainer;
+        private ulong _activeRetainerId;
         private ulong _activeCharacterId;
         private ulong _activeFreeCompanyId;
         private ulong _activeHouseId;
@@ -126,9 +125,6 @@ namespace CriticalCommonLib
 
         public event CharacterJobChangedDelegate? OnCharacterJobChanged;
         
-        public delegate void GilUpdatedDelegate(ulong characterId, uint newGil);
-        public event GilUpdatedDelegate? OnGilUpdated;
-
         public Dictionary<ulong, Character> Characters => _characters;
 
         public KeyValuePair<ulong, Character>[] GetPlayerCharacters()
@@ -208,6 +204,29 @@ namespace CriticalCommonLib
                 return Characters[characterId];
             }
             return null;
+        }
+
+        public Character? GetParentCharacterById(ulong characterId)
+        {
+            var character = GetCharacterById(characterId);
+
+            if (IsFreeCompany(characterId) || IsHousing(characterId)) return character;
+            if (character != null)
+            {
+                return character.CharacterType == CharacterType.Character ?
+                    character : GetCharacterById(character.OwnerId);
+            }
+
+            return null;
+        }
+
+        public string GetCharacterNameById(ulong characterId, bool owner = false)
+        {
+            if (!owner) return GetCharacterById(characterId)?.FormattedName ?? "Unknown";
+            var character = GetParentCharacterById(characterId);
+            if (character != null && character.CharacterId == characterId)
+                return "";
+            return character?.FormattedName ?? "Unknown";
         }
         
         public bool BelongsToActiveCharacter(ulong characterId)
@@ -489,7 +508,7 @@ namespace CriticalCommonLib
         }
 
         public bool IsRetainerLoaded => _isRetainerLoaded;
-        public ulong ActiveRetainer => _activeRetainer;
+        public ulong ActiveRetainerId => _activeRetainerId;
         public ulong ActiveCharacterId => _activeCharacterId;
         public ulong ActiveFreeCompanyId => _activeFreeCompanyId;
 
@@ -497,6 +516,9 @@ namespace CriticalCommonLib
 
         public Character? ActiveCharacter =>
             _characters.ContainsKey(_activeCharacterId) ? _characters[_activeCharacterId] : null;
+
+        public Character? ActiveRetainer =>
+            _characters.ContainsKey(_activeRetainerId) ? _characters[_activeRetainerId] : null;
         public uint? ActiveClassJobId => _activeClassJobId;
 
         public DateTime? _lastRetainerSwap;
@@ -515,7 +537,7 @@ namespace CriticalCommonLib
 
         public void OverrideActiveRetainer(ulong activeRetainer)
         {
-            _activeRetainer = activeRetainer;
+            _activeRetainerId = activeRetainer;
         }
 
         public void OverrideActiveFreeCompany(ulong activeFreeCompanyId)
@@ -532,13 +554,13 @@ namespace CriticalCommonLib
         private void CheckRetainerId(DateTime lastUpdate)
         {
             var retainerId = this.InternalRetainerId;
-            if (ActiveRetainer != retainerId)
+            if (ActiveRetainerId != retainerId)
             {
                 if (_lastRetainerSwap == null)
                 {
                     _isRetainerLoaded = false;
-                    _activeRetainer = retainerId;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveRetainerChanged?.Invoke(ActiveRetainer); });
+                    _activeRetainerId = retainerId;
+                    Service.Framework.RunOnFrameworkThread(() => { OnActiveRetainerChanged?.Invoke(ActiveRetainerId); });
                     _lastRetainerSwap = lastUpdate;
                     return;
                 }
@@ -552,13 +574,13 @@ namespace CriticalCommonLib
                 //Make sure the retainer is fully loaded before firing the event
                 if (retainerId != 0)
                 {
-                    _activeRetainer = retainerId;
+                    _activeRetainerId = retainerId;
                     _isRetainerLoaded = true;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveRetainerLoaded?.Invoke(ActiveRetainer); });
+                    Service.Framework.RunOnFrameworkThread(() => { OnActiveRetainerLoaded?.Invoke(ActiveRetainerId); });
                 }
             }
 
-            if (_lastRetainerSwap == null && ActiveRetainer != 0 && !_isRetainerLoaded)
+            if (_lastRetainerSwap == null && ActiveRetainerId != 0 && !_isRetainerLoaded)
             {
                 _isRetainerLoaded = true;
             }

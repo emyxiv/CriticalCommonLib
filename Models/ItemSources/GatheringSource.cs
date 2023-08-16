@@ -1,7 +1,7 @@
 using System;
 using Lumina.Excel.GeneratedSheets;
 
-namespace CriticalCommonLib.Models
+namespace CriticalCommonLib.Models.ItemSources
 {
     public class GatheringSource
     {
@@ -31,6 +31,11 @@ namespace CriticalCommonLib.Models
             return HashCode.Combine(_gatheringType.RowId, _level.RowId, _territoryType.RowId, _placeName.RowId);
 
         }
+
+        public bool IsMining => GatheringType.RowId == 0;
+        public bool IsQuarrying => GatheringType.RowId == 1;
+        public bool IsLogging => GatheringType.RowId == 2;
+        public bool IsHarvesting => GatheringType.RowId == 3;
 
         public ItemSource Source
         {
