@@ -4,8 +4,8 @@ using System.Linq;
 using CriticalCommonLib.Enums;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Hooking;
-using Dalamud.Logging;
 using Dalamud.Memory;
+using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Component.GUI;
@@ -14,6 +14,7 @@ namespace CriticalCommonLib.Services
 {
     public class TooltipService : IDisposable, ITooltipService
     {
+        private readonly IGameInteropProvider _gameInteropProvider;
         private List<TooltipTweak> _tooltipTweaks = new();
 
         public void AddTooltipTweak(TooltipTweak tooltipTweak)
@@ -58,7 +59,7 @@ namespace CriticalCommonLib.Services
                 var stringAddress = new IntPtr(stringArrayData->StringArray[field]);
                 return stringAddress == IntPtr.Zero ? null : MemoryHelper.ReadSeStringNullTerminated(stringAddress);
             } catch (Exception ex) {
-                PluginLog.Error(ex.Message);
+                Service.Log.Error(ex.Message);
                 return new SeString();
             }
         }
@@ -71,7 +72,7 @@ namespace CriticalCommonLib.Services
                     bytes.Add(0);
                     stringArrayData->SetValue((int)field, bytes.ToArray(), false, true, false);
                 } catch (Exception ex) {
-                    PluginLog.LogError(ex, "Failed to set tooltip string");
+                    Service.Log.Error(ex, "Failed to set tooltip string");
                 }
             }
 
@@ -84,7 +85,7 @@ namespace CriticalCommonLib.Services
                     bytes.Add(0);
                     stringArrayData->SetValue((int)field, bytes.ToArray(), false, true, false);
                 } catch (Exception ex) {
-                    PluginLog.LogError(ex, "Failed to set tooltip string");
+                    Service.Log.Error(ex, "Failed to set tooltip string");
                 }
             }
 
@@ -113,10 +114,11 @@ namespace CriticalCommonLib.Services
         [Signature("E8 ?? ?? ?? ?? 48 8B D5 48 8B CF E8 ?? ?? ?? ?? 41 8D 45 FF 83 F8 01 77 6D", DetourName = nameof(GenerateActionTooltipDetour), UseFlags = SignatureUseFlags.Hook)]
         private Hook<GenerateActionTooltip>? generateActionTooltipHook = null;
 
-        public TooltipService()
+        public TooltipService(IGameInteropProvider gameInteropProvider)
         {
-            Service.Gui.HoveredItemChanged += GuiOnHoveredItemChanged;
-            SignatureHelper.Initialise(this);
+            _gameInteropProvider = gameInteropProvider;
+            _gameInteropProvider.InitializeFromAttributes(this);
+            Service.GameGui.HoveredItemChanged += GuiOnHoveredItemChanged;
             generateItemTooltipHook?.Enable();
 
         }
@@ -145,11 +147,11 @@ namespace CriticalCommonLib.Services
                     try {
                         t.OnActionTooltip(addon, HoveredAction);
                     } catch (Exception ex) {
-                        PluginLog.Error(ex.Message);
+                        Service.Log.Error(ex.Message);
                     }
                 }
             } catch (Exception ex) {
-                PluginLog.Error(ex.Message);
+                Service.Log.Error(ex.Message);
             }
             return retVal;
         }
@@ -171,7 +173,7 @@ namespace CriticalCommonLib.Services
         }
 
         public void Dispose() {
-            Service.Gui.HoveredItemChanged -= GuiOnHoveredItemChanged;
+            Service.GameGui.HoveredItemChanged -= GuiOnHoveredItemChanged;
             itemHoveredHook?.Dispose();
             actionTooltipHook?.Dispose();
             actionHoveredHook?.Dispose();
@@ -214,13 +216,13 @@ namespace CriticalCommonLib.Services
                         }
                         catch (Exception ex)
                         {
-                            PluginLog.Error(ex.Message);
+                            Service.Log.Error(ex.Message);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    PluginLog.Error(ex.Message);
+                    Service.Log.Error(ex.Message);
                 }
             }
             else
@@ -236,11 +238,11 @@ namespace CriticalCommonLib.Services
                     try {
                         t.OnGenerateActionTooltip(numberArrayData, stringArrayData);
                     } catch (Exception ex) {
-                        PluginLog.Error(ex.Message);
+                        Service.Log.Error(ex.Message);
                     }
                 }
             } catch (Exception ex) {
-                PluginLog.Error(ex.Message);
+                Service.Log.Error(ex.Message);
             }
             return generateActionTooltipHook!.Original(addonItemDetail, numberArrayData, stringArrayData);
         }

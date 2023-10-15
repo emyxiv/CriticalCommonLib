@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using CriticalCommonLib.Models;
-using Dalamud.Logging;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 
 namespace CriticalCommonLib.Services
@@ -87,14 +86,14 @@ namespace CriticalCommonLib.Services
             }
             if(counter > 100)
             {
-                PluginLog.Verbose(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Failed to retrieve new client id");
+                Service.Log.Verbose(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Failed to retrieve new client id");
                 return;
             }
             _canRun = true;
             var framework = Framework.Instance();
             if (framework == null)
             {
-                PluginLog.Verbose("Failed to find framework.");
+                Service.Log.Verbose("Failed to find framework.");
                 return;
             }
             _odrDirectory = Path.Combine(framework->UserPath,
@@ -143,7 +142,7 @@ namespace CriticalCommonLib.Services
             }
             if(counter > 100)
             {
-                PluginLog.Debug(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Itemodr parsing failed hard");
+                Service.Log.Debug(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Itemodr parsing failed hard");
                 return;
             }
             try
@@ -153,7 +152,7 @@ namespace CriticalCommonLib.Services
                 {
                     _sortOrder = sortOrder;
                     Service.Framework.RunOnTick(() => { OnSortOrderChanged?.Invoke(sortOrder); });
-                    PluginLog.Debug(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Itemodr reparsed");
+                    Service.Log.Debug(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Itemodr reparsed");
                 }
                 else
                 {
@@ -163,7 +162,7 @@ namespace CriticalCommonLib.Services
             }
             catch (Exception e)
             {
-                PluginLog.Debug(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Failed to reparse iremodr because " + e.Message);
+                Service.Log.Debug(DateTimeOffset.Now.ToUnixTimeMilliseconds() + " Failed to reparse iremodr because " + e.Message);
                 Thread.Sleep(50);
                 ParseOdr(++counter);
             }            
@@ -330,7 +329,7 @@ namespace CriticalCommonLib.Services
                 }
                 catch (Exception e)
                 {
-                    PluginLog.Verbose(e.Message);
+                    Service.Log.Verbose(e.Message);
                 }
 
                 return new InventorySortOrder(retainerInventories, normalInventories);;
@@ -389,7 +388,7 @@ namespace CriticalCommonLib.Services
 
             if( _disposed == false )
             {
-                PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
             }
 #endif
             Dispose (true);

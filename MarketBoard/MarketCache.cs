@@ -1,5 +1,4 @@
-﻿using Dalamud.Logging;
-using CriticalCommonLib.Resolvers;
+﻿using CriticalCommonLib.Resolvers;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Concurrent;
@@ -119,7 +118,7 @@ namespace CriticalCommonLib.MarketBoard
 
             if( _disposed == false )
             {
-                PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
             }
 #endif
             Dispose (true);
@@ -149,7 +148,7 @@ namespace CriticalCommonLib.MarketBoard
             }
             catch (Exception e)
             {
-                PluginLog.Error("Error while parsing saved universalis data, " + e.Message);
+                Service.Log.Error("Error while parsing saved universalis data, " + e.Message);
             }
         }
         
@@ -175,15 +174,22 @@ namespace CriticalCommonLib.MarketBoard
             }
 
             var cacheFile = new FileInfo(_cacheStorageLocation);
-            PluginLog.Verbose("Saving Universalis Cache");
-            File.WriteAllText(cacheFile.FullName, JsonConvert.SerializeObject((object)_marketBoardCache, Formatting.None, new JsonSerializerSettings()
+            Service.Log.Verbose("Saving MarketCache");
+            try
             {
-                TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
-                TypeNameHandling = TypeNameHandling.Objects,
-                ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate,
-                ContractResolver = new MinifyResolver()
-            }));
+                File.WriteAllText(cacheFile.FullName, JsonConvert.SerializeObject((object)_marketBoardCache, Formatting.None, new JsonSerializerSettings()
+                {
+                    TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
+                    TypeNameHandling = TypeNameHandling.Objects,
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
+                    DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate,
+                    ContractResolver = new MinifyResolver()
+                }));
+            }
+            catch (Exception e)
+            {
+                Service.Log.Debug(e, messageTemplate: "Failed to save MarketCache.");
+            }
 
             AutomaticSaveTimer.Restart();
         }
@@ -200,7 +206,7 @@ namespace CriticalCommonLib.MarketBoard
                 AutomaticCheckTimer.Start();
             }
 
-            PluginLog.Verbose("Checking Cache...");
+            Service.Log.Verbose("Checking Cache...");
             foreach (var item in _marketBoardCache)
             {
                 var now = DateTime.Now;

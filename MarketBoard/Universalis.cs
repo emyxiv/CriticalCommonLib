@@ -1,5 +1,4 @@
 ﻿using CriticalCommonLib.Models;
-using Dalamud.Logging;
 using Dispatch;
 using Newtonsoft.Json;
 using System;
@@ -51,7 +50,7 @@ namespace CriticalCommonLib.MarketBoard
 
         public void Initalise()
         {
-            PluginLog.Verbose("Setting up universalis buffer.");
+            Service.Log.Verbose("Setting up universalis buffer.");
             _initialised = true;
             var stepInterval = _queuedItems
                 .Buffer(TimeSpan.FromSeconds(BufferInterval), MaxBufferCount)
@@ -107,7 +106,7 @@ namespace CriticalCommonLib.MarketBoard
             {
                 if (_tooManyRequests)
                 {
-                    PluginLog.Debug("Too many requests, readding items.");
+                    Service.Log.Debug("Too many requests, readding items.");
                     foreach (var itemId in itemIds)
                     {
                         _queuedItems.OnNext(itemId);
@@ -139,7 +138,7 @@ namespace CriticalCommonLib.MarketBoard
 
                                 if (webresponse.StatusCode == HttpStatusCode.TooManyRequests)
                                 {
-                                    PluginLog.Warning("Universalis: too many requests!");
+                                    Service.Log.Warning("Universalis: too many requests!");
                                     // sleep for 1 minute if too many requests
                                     Thread.Sleep(60000);
 
@@ -159,14 +158,14 @@ namespace CriticalCommonLib.MarketBoard
                                 }
                                 else
                                 {
-                                    PluginLog.Error("Universalis: Failed to parse universalis json data");
+                                    Service.Log.Error("Universalis: Failed to parse universalis json data");
                                 }
                                 
                             }
                         }
                         catch (Exception ex)
                         {
-                            PluginLog.Debug(ex.ToString());
+                            Service.Log.Debug(ex.ToString());
                         }
                     });
                     _disposables.Add(dispatch);
@@ -176,7 +175,7 @@ namespace CriticalCommonLib.MarketBoard
                     var dispatch = _apiRequestQueue.DispatchAsync(() =>
                     {
                         var itemIdsString = String.Join(",", itemIds.Select(c => c.ToString()).ToArray());
-                        PluginLog.Verbose($"Sending request for items {itemIdsString} to universalis API.");
+                        Service.Log.Verbose($"Sending request for items {itemIdsString} to universalis API.");
                         string url =
                             $"https://universalis.app/api/v2/{datacenter}/{itemIdsString}?listings=20&entries=20";
 
@@ -192,7 +191,7 @@ namespace CriticalCommonLib.MarketBoard
 
                                 if (webresponse.StatusCode == HttpStatusCode.TooManyRequests)
                                 {
-                                    PluginLog.Warning("Universalis: too many requests!");
+                                    Service.Log.Warning("Universalis: too many requests!");
                                     _nextRequestTime = DateTime.Now.AddMinutes(1);
                                     _tooManyRequests = true;
                                 }
@@ -213,14 +212,14 @@ namespace CriticalCommonLib.MarketBoard
                                 }
                                 else
                                 {
-                                    PluginLog.Verbose("Universalis: could not parse multi request json data");
+                                    Service.Log.Verbose("Universalis: could not parse multi request json data");
                                 }
 
                             }
                         }
                         catch (Exception ex)
                         {
-                            PluginLog.Debug(ex.ToString());
+                            Service.Log.Debug(ex.ToString());
                         }
                     });
                     _disposables.Add(dispatch);
@@ -255,7 +254,7 @@ namespace CriticalCommonLib.MarketBoard
 
                                 if (webresponse.StatusCode == HttpStatusCode.TooManyRequests)
                                 {
-                                    PluginLog.Warning("Universalis: too many requests!");
+                                    Service.Log.Warning("Universalis: too many requests!");
                                 // sleep for 1 minute if too many requests
                                 Thread.Sleep(60000);
 
@@ -275,7 +274,7 @@ namespace CriticalCommonLib.MarketBoard
                                 }
                                 else
                                 {
-                                    PluginLog.Verbose("Universalis: could not parse listing data json");
+                                    Service.Log.Verbose("Universalis: could not parse listing data json");
                                 }
                                 
                                 // Simple way to prevent too many requests
@@ -284,7 +283,7 @@ namespace CriticalCommonLib.MarketBoard
                         }
                         catch (Exception ex)
                         {
-                            PluginLog.Debug(ex.ToString() + ex.InnerException?.ToString());
+                            Service.Log.Debug(ex.ToString() + ex.InnerException?.ToString());
                         }
 
                     });

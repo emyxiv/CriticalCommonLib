@@ -1,6 +1,5 @@
 using System;
 using CriticalCommonLib.Interfaces;
-using Dalamud.Logging;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 
@@ -48,7 +47,7 @@ public class TeleporterIpc : ITeleporterIpc
         }
         catch (Exception ex)
         {
-            PluginLog.LogDebug($"Failed to subscribe to Teleporter\nReason: {ex}");
+            Service.Log.Debug($"Failed to subscribe to Teleporter\nReason: {ex}");
         }
     }
 

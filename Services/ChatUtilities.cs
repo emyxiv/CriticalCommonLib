@@ -7,7 +7,6 @@ using CriticalCommonLib.Sheets;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
-using Dalamud.Logging;
 using Lumina.Excel.GeneratedSheets;
 
 namespace CriticalCommonLib.Services
@@ -38,7 +37,7 @@ namespace CriticalCommonLib.Services
         {
             var mapPayload = new MapLinkPayload(territory.RowId, mapEx?.RowId ?? territory.Map.Row, xCoord, yCoord, fudgeFactor);
             if (openMapLink)
-                Service.Gui.OpenMapWithMapLink(mapPayload);
+                Service.GameGui.OpenMapWithMapLink(mapPayload);
             if (withCoordinates)
                 name = $"{name} ({xCoord.ToString("00.0", CultureInfo.InvariantCulture)}, {yCoord.ToString("00.0", CultureInfo.InvariantCulture)})";
             return builder.AddUiForeground(0x0225)
@@ -83,7 +82,7 @@ namespace CriticalCommonLib.Services
                 Name = SeString.Empty,
                 Type = XivChatType.Echo,
             };
-            Service.Chat.PrintChat(entry);
+            Service.Chat.Print(entry);
         }
 
         public void PrintError(SeString message)
@@ -94,7 +93,7 @@ namespace CriticalCommonLib.Services
                 Name = SeString.Empty,
                 Type = XivChatType.ErrorMessage,
             };
-            Service.Chat.PrintChat(entry);
+            Service.Chat.Print(entry);
         }
 
         public void Print(string message)
@@ -122,7 +121,7 @@ namespace CriticalCommonLib.Services
             if (e != null)
             {
                 name = name.Length > 0 ? name : "<Unnamed>";
-                PluginLog.Error($"Could not save {objectType}{name} to Clipboard:\n{e}");
+                Service.Log.Error($"Could not save {objectType}{name} to Clipboard:\n{e}");
                 PrintError($"Could not save {objectType}", name, SeColorNames, " to Clipboard.");
             }
             else
@@ -175,7 +174,7 @@ namespace CriticalCommonLib.Services
 
             var payload = new SeString(payloadList);
 
-            Service.Chat.PrintChat(new XivChatEntry {
+            Service.Chat.Print(new XivChatEntry {
                 Message = payload
             });
         }

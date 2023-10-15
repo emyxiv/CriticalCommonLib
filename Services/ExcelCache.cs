@@ -4,12 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Collections;
 using CriticalCommonLib.Extensions;
-using Dalamud.Data;
 using Lumina;
 using Lumina.Excel;
 using Lumina.Excel.GeneratedSheets;
 using CriticalCommonLib.Sheets;
-using Dalamud.Logging;
+using Dalamud.Plugin.Services;
 using Lumina.Data;
 using LuminaSupplemental.Excel.Model;
 
@@ -17,7 +16,7 @@ namespace CriticalCommonLib.Services
 {
     public partial class ExcelCache : IDisposable
     {
-        private DataManager? _dataManager;
+        private IDataManager? _dataManager;
         private GameData? _gameData;
         
         private Dictionary<uint, EventItem> _eventItemCache;
@@ -469,7 +468,7 @@ namespace CriticalCommonLib.Services
             return null;
         }
 
-        private decimal currentPatch = new decimal(6.45); 
+        private decimal currentPatch = new decimal(6.5); 
         private Dictionary<uint, decimal>? _itemPatches;
 
         public decimal GetItemPatch(uint itemId)
@@ -963,7 +962,7 @@ namespace CriticalCommonLib.Services
         /// <param name="loadCsvs">Should LuminaSupplemental CSV sheets be loaded by default?</param>
         /// <param name="loadNpcs">Should NPC locations be calculated on boot(these cannot be loaded later as of yet)</param>
         /// <param name="loadShops">Should shop locations be calculated on boot(these cannot be loaded later as of yet)</param>
-        public ExcelCache(DataManager dataManager, bool loadCsvs = true, bool loadNpcs = true, bool loadShops = true) : this()
+        public ExcelCache(IDataManager dataManager, bool loadCsvs = true, bool loadNpcs = true, bool loadShops = true) : this()
         {
             _dataManager = dataManager;
             Service.ExcelCache = this;
@@ -1034,15 +1033,15 @@ namespace CriticalCommonLib.Services
                 {
                     foreach (var failedLine in failedLines)
                     {
-                        PluginLog.Error("Failed to load line from " + title + ": " + failedLine);
+                        Service.Log.Error("Failed to load line from " + title + ": " + failedLine);
                     }
                 }
                 return lines;
             }
             catch (Exception e)
             {
-                PluginLog.Error("Failed to load " + title);
-                PluginLog.Error(e.Message);
+                Service.Log.Error("Failed to load " + title);
+                Service.Log.Error(e.Message);
             }
 
             return new List<T>();
@@ -1644,7 +1643,7 @@ namespace CriticalCommonLib.Services
 
             if( _disposed == false )
             {
-                PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
             }
 #endif
             Dispose (true);

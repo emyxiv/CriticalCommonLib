@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Models;
-using Dalamud.Game;
-using Dalamud.Logging;
+using CriticalCommonLib.Services;
+using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Housing;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
@@ -12,6 +12,9 @@ namespace CriticalCommonLib
 {
     public class CharacterMonitor : ICharacterMonitor
     {
+        private readonly IFramework _framework;
+        private readonly IClientState _clientState;
+        private readonly ExcelCache _excelCache;
         private Dictionary<ulong, Character> _characters;
         
         private ulong _activeRetainerId;
@@ -25,11 +28,14 @@ namespace CriticalCommonLib
         private Dictionary<ulong, uint> _trackedGil = new Dictionary<ulong, uint>();
 
         
-        public CharacterMonitor()
+        public CharacterMonitor(IFramework framework, IClientState clientState, ExcelCache excelCache)
         {
+            _framework = framework;
+            _clientState = clientState;
+            _excelCache = excelCache;
             _territoryMap = new Dictionary<uint, uint>();
             _characters = new Dictionary<ulong, Character>();
-            Service.Framework.Update += FrameworkOnOnUpdateEvent;
+            _framework.Update += FrameworkOnOnUpdateEvent;
             RefreshActiveCharacter();
         }
 
@@ -49,7 +55,7 @@ namespace CriticalCommonLib
         {
             get
             {
-                return Service.ClientState.IsLoggedIn;
+                return _clientState.IsLoggedIn;
             }
         }
 
@@ -57,13 +63,13 @@ namespace CriticalCommonLib
         {
             get
             {
-                return Service.ClientState.LocalContentId;
+                return _clientState.LocalContentId;
             }
         }
 
         public void UpdateCharacter(Character character)
         {
-            Service.Framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(character); });
+            _framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(character); });
         }
 
         public void RemoveCharacter(ulong characterId)
@@ -71,24 +77,24 @@ namespace CriticalCommonLib
             if (_characters.ContainsKey(characterId))
             {
                 _characters.Remove(characterId);
-                Service.Framework.RunOnFrameworkThread(() => { OnCharacterRemoved?.Invoke(characterId); });
+                _framework.RunOnFrameworkThread(() => { OnCharacterRemoved?.Invoke(characterId); });
             }
         }
 
         public unsafe void RefreshActiveCharacter()
         {
-            if (Service.ClientState.IsLoggedIn && Service.ClientState.LocalPlayer != null && Service.ClientState.LocalContentId != 0)
+            if (_clientState.IsLoggedIn && _clientState.LocalPlayer != null && _clientState.LocalContentId != 0)
             {
-                PluginLog.Verbose("CharacterMonitor: Character has changed to " + Service.ClientState.LocalContentId);
+                Service.Log.Verbose("CharacterMonitor: Character has changed to " + _clientState.LocalContentId);
                 Character character;
-                if (_characters.ContainsKey(Service.ClientState.LocalContentId))
+                if (_characters.ContainsKey(_clientState.LocalContentId))
                 {
-                    character = _characters[Service.ClientState.LocalContentId];
+                    character = _characters[_clientState.LocalContentId];
                 }
                 else
                 {
                     character = new Character();
-                    character.CharacterId = Service.ClientState.LocalContentId;
+                    character.CharacterId = _clientState.LocalContentId;
                     _characters[character.CharacterId] = character;
                 }
                 var infoProxy = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.Instance()->UIModule->GetInfoModule()->GetInfoProxyById(InfoProxyId.FreeCompany);
@@ -97,12 +103,12 @@ namespace CriticalCommonLib
                 {
                     freeCompanyInfoProxy = (InfoProxyFreeCompany*)infoProxy;
                 }
-                character.UpdateFromCurrentPlayer(Service.ClientState.LocalPlayer, freeCompanyInfoProxy);
-                Service.Framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(character); });
+                character.UpdateFromCurrentPlayer(_clientState.LocalPlayer, freeCompanyInfoProxy);
+                _framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(character); });
             }
             else
             {
-                Service.Framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(null); });
+                _framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(null); });
             }
         }
 
@@ -284,7 +290,7 @@ namespace CriticalCommonLib
 
         public void LoadExistingRetainers(Dictionary<ulong, Character> characters)
         {
-            PluginLog.Verbose("CharacterMonitor: Loading existing retainers");
+            Service.Log.Verbose("CharacterMonitor: Loading existing retainers");
             foreach (var character in characters)
             {
                 _characters[character.Key] = character.Value;
@@ -337,8 +343,8 @@ namespace CriticalCommonLib
                 unsafe
                 {
                     var housingManager = HousingManager.Instance();
-                    var character = Service.ClientState.LocalPlayer;
-                    var territoryType = Service.ClientState.TerritoryType;
+                    var character = _clientState.LocalPlayer;
+                    var territoryType = _clientState.TerritoryType;
                     
                     if (housingManager != null && character != null)
                     {
@@ -355,7 +361,7 @@ namespace CriticalCommonLib
 
                         if (!_territoryMap.ContainsKey(territoryType))
                         {
-                            var territory = Service.ExcelCache.GetTerritoryTypeExSheet().GetRow(territoryType);
+                            var territory = _excelCache.GetTerritoryTypeExSheet().GetRow(territoryType);
                             if (territory == null)
                             {
                                 return 0;
@@ -389,7 +395,7 @@ namespace CriticalCommonLib
                 unsafe
                 {
                     var housingManager = HousingManager.Instance();
-                    var character = Service.ClientState.LocalPlayer;
+                    var character = _clientState.LocalPlayer;
                     if (housingManager != null)
                     {
                         var wardId = housingManager->GetCurrentWard();
@@ -497,9 +503,9 @@ namespace CriticalCommonLib
             {
                 unsafe
                 {
-                    if (Service.ClientState.LocalPlayer)
+                    if (_clientState.LocalPlayer)
                     {
-                        return Service.ClientState.LocalContentId;
+                        return _clientState.LocalContentId;
                     }
 
                     return 0;
@@ -560,7 +566,7 @@ namespace CriticalCommonLib
                 {
                     _isRetainerLoaded = false;
                     _activeRetainerId = retainerId;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveRetainerChanged?.Invoke(ActiveRetainerId); });
+                    _framework.RunOnFrameworkThread(() => { OnActiveRetainerChanged?.Invoke(ActiveRetainerId); });
                     _lastRetainerSwap = lastUpdate;
                     return;
                 }
@@ -569,14 +575,14 @@ namespace CriticalCommonLib
             //This is the best I can come up with due it the retainer ID changing but the inventory takes almost a second to loate(I assume as it loads in from the network). This won't really take bad network conditions into account but until I can come up with a more reliable way it'll have to do
             if(_lastRetainerSwap != null && _lastRetainerSwap.Value.AddSeconds(waitTime) <= lastUpdate)
             {
-                PluginLog.Verbose("CharacterMonitor: Active retainer id has changed");
+                Service.Log.Verbose("CharacterMonitor: Active retainer id has changed");
                 _lastRetainerSwap = null;
                 //Make sure the retainer is fully loaded before firing the event
                 if (retainerId != 0)
                 {
                     _activeRetainerId = retainerId;
                     _isRetainerLoaded = true;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveRetainerLoaded?.Invoke(ActiveRetainerId); });
+                    _framework.RunOnFrameworkThread(() => { OnActiveRetainerLoaded?.Invoke(ActiveRetainerId); });
                 }
             }
 
@@ -595,7 +601,7 @@ namespace CriticalCommonLib
                 {
                     _isFreeCompanyLoaded = false;
                     _activeFreeCompanyId = freeCompanyId;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveFreeCompanyChanged?.Invoke(ActiveFreeCompanyId); });
+                    _framework.RunOnFrameworkThread(() => { OnActiveFreeCompanyChanged?.Invoke(ActiveFreeCompanyId); });
                     _lastFreeCompanyCheck = lastUpdate;
                     return;
                 }
@@ -604,14 +610,14 @@ namespace CriticalCommonLib
             
             if(_lastFreeCompanyCheck != null && _lastFreeCompanyCheck.Value.AddSeconds(waitTime) <= lastUpdate)
             {
-                PluginLog.Verbose("CharacterMonitor: Active free company id has changed to " + freeCompanyId);
+                Service.Log.Verbose("CharacterMonitor: Active free company id has changed to " + freeCompanyId);
                 _lastFreeCompanyCheck = null;
                 //Make sure the retainer is fully loaded before firing the event
                 if (freeCompanyId != 0)
                 {
                     _activeFreeCompanyId = freeCompanyId;
                     _isFreeCompanyLoaded = true;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveFreeCompanyChanged?.Invoke(ActiveFreeCompanyId); });
+                    _framework.RunOnFrameworkThread(() => { OnActiveFreeCompanyChanged?.Invoke(ActiveFreeCompanyId); });
                 }
             }
 
@@ -630,7 +636,7 @@ namespace CriticalCommonLib
                 {
                     _isHouseLoaded = false;
                     _activeHouseId = houseId;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveHouseChanged?.Invoke(ActiveHouseId, InternalWardId, InternalPlotId, InternalDivisionId, InternalRoomId, InternalHasHousePermission); });
+                    _framework.RunOnFrameworkThread(() => { OnActiveHouseChanged?.Invoke(ActiveHouseId, InternalWardId, InternalPlotId, InternalDivisionId, InternalRoomId, InternalHasHousePermission); });
                     _lastHouseCheck = lastUpdate;
                     return;
                 }
@@ -639,14 +645,14 @@ namespace CriticalCommonLib
             
             if(_lastHouseCheck != null && _lastHouseCheck.Value.AddSeconds(waitTime) <= lastUpdate)
             {
-                PluginLog.Verbose("CharacterMonitor: Active house id has changed to " + houseId);
+                Service.Log.Verbose("CharacterMonitor: Active house id has changed to " + houseId);
                 _lastHouseCheck = null;
                 //Make sure the retainer is fully loaded before firing the event
                 if (houseId != 0)
                 {
                     _activeHouseId = houseId;
                     _isHouseLoaded = true;
-                    Service.Framework.RunOnFrameworkThread(() => { OnActiveHouseChanged?.Invoke(ActiveHouseId, InternalWardId, InternalPlotId, InternalDivisionId, InternalRoomId, InternalHasHousePermission); });
+                    _framework.RunOnFrameworkThread(() => { OnActiveHouseChanged?.Invoke(ActiveHouseId, InternalWardId, InternalPlotId, InternalDivisionId, InternalRoomId, InternalHasHousePermission); });
                 }
             }
 
@@ -670,7 +676,7 @@ namespace CriticalCommonLib
             
             if(_lastCharacterSwap != null && _lastCharacterSwap.Value.AddSeconds(2) <= lastUpdate)
             {
-                PluginLog.Verbose("CharacterMonitor: Active character id has changed");
+                Service.Log.Verbose("CharacterMonitor: Active character id has changed");
                 _lastCharacterSwap = null;
                 //Make sure the character is fully loaded before firing the event
                 if (ActiveCharacterId  != characterId)
@@ -690,7 +696,7 @@ namespace CriticalCommonLib
             {
                 return;
             }
-            if (Service.ClientState.LocalPlayer == null || retainerManager->Ready != 1)
+            if (_clientState.LocalPlayer == null || retainerManager->Ready != 1)
                 return;
             if (_lastRetainerCheck == null)
             {
@@ -700,33 +706,33 @@ namespace CriticalCommonLib
             if (_lastRetainerCheck.Value.AddSeconds(2) <= lastUpdateTime)
             {
                 _lastRetainerCheck = null;
-                var retainerList = retainerManager->Retainer;
+                var retainerList = retainerManager->RetainersSpan;
                 var count = retainerManager->GetRetainerCount();
-                var currentCharacter = Service.ClientState.LocalPlayer;
+                var currentCharacter = _clientState.LocalPlayer;
                 if (currentCharacter != null)
                 {
-                    for (byte i = 0; i < count; ++i)
+                    for (var i = 0; i < retainerList.Length; i++)
                     {
                         var retainerInformation = retainerList[i];
-                        if (retainerInformation != null && retainerInformation->RetainerID != 0)
+                        if (retainerInformation.RetainerID != 0)
                         {
                             Character character;
-                            if (_characters.ContainsKey(retainerInformation->RetainerID))
+                            if (_characters.ContainsKey(retainerInformation.RetainerID))
                             {
-                                character = _characters[retainerInformation->RetainerID];
+                                character = _characters[retainerInformation.RetainerID];
                             }
                             else
                             {
                                 character = new Character();
-                                character.CharacterId = retainerInformation->RetainerID;
-                                _characters[retainerInformation->RetainerID] = character;
+                                character.CharacterId = retainerInformation.RetainerID;
+                                _characters[retainerInformation.RetainerID] = character;
                             }
 
                             if (character.UpdateFromRetainerInformation(retainerInformation, currentCharacter, i))
                             {
-                                PluginLog.Debug("Retainer " + retainerInformation->RetainerID + " was updated.");
-                                character.OwnerId = Service.ClientState.LocalContentId;
-                                Service.Framework.RunOnFrameworkThread(() =>
+                                Service.Log.Debug("Retainer " + retainerInformation.RetainerID + " was updated.");
+                                character.OwnerId = _clientState.LocalContentId;
+                                _framework.RunOnFrameworkThread(() =>
                                 {
                                     OnCharacterUpdated?.Invoke(character);
                                 });
@@ -741,7 +747,7 @@ namespace CriticalCommonLib
         private unsafe void UpdateFreeCompany(DateTime lastUpdateTime)
         {
 
-            if (Service.ClientState.LocalPlayer == null)
+            if (_clientState.LocalPlayer == null)
                 return;
             if (_lastFreeCompanyUpdate == null)
             {
@@ -773,8 +779,8 @@ namespace CriticalCommonLib
                         
                         if (character.UpdateFromInfoProxyFreeCompany(freeCompanyInfoProxy))
                         {
-                            PluginLog.Debug("Free Company " + character.CharacterId + " was updated.");
-                            Service.Framework.RunOnFrameworkThread(() =>
+                            Service.Log.Debug("Free Company " + character.CharacterId + " was updated.");
+                            _framework.RunOnFrameworkThread(() =>
                             {
                                 OnCharacterUpdated?.Invoke(character);
                             });
@@ -791,7 +797,7 @@ namespace CriticalCommonLib
         private unsafe void UpdateHouses(DateTime lastUpdateTime)
         {
 
-            if (Service.ClientState.LocalPlayer == null)
+            if (_clientState.LocalPlayer == null)
                 return;
             if (_lastHouseUpdate == null)
             {
@@ -817,11 +823,11 @@ namespace CriticalCommonLib
                         _characters[houseId] = character;
                     }
                     var housingManager = HousingManager.Instance();
-                    var internalCharacter = Service.ClientState.LocalPlayer;
-                    var territoryTypeId = Service.ClientState.TerritoryType;
+                    var internalCharacter = _clientState.LocalPlayer;
+                    var territoryTypeId = _clientState.TerritoryType;
                     if (!_territoryMap.ContainsKey(territoryTypeId))
                     {
-                        var territory = Service.ExcelCache.GetTerritoryTypeExSheet().GetRow(territoryTypeId);
+                        var territory = _excelCache.GetTerritoryTypeExSheet().GetRow(territoryTypeId);
                         if (territory == null)
                         {
                             return;
@@ -835,15 +841,15 @@ namespace CriticalCommonLib
                     {
                         if (character.UpdateFromCurrentHouse(housingManager, internalCharacter, zoneId, territoryTypeId))
                         {
-                            PluginLog.Debug("Free Company " + character.CharacterId + " was updated.");
-                            Service.Framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(character); });
+                            Service.Log.Debug("Free Company " + character.CharacterId + " was updated.");
+                            _framework.RunOnFrameworkThread(() => { OnCharacterUpdated?.Invoke(character); });
                         }
                     }
                 }
             }
         }
         
-        private void FrameworkOnOnUpdateEvent(Framework framework)
+        private void FrameworkOnOnUpdateEvent(IFramework framework)
         {
             UpdateRetainers(framework.LastUpdate);
             UpdateFreeCompany(framework.LastUpdate);
@@ -860,9 +866,9 @@ namespace CriticalCommonLib
         {
             get
             {
-                if (Service.ClientState.IsLoggedIn && Service.ClientState.LocalPlayer != null)
+                if (_clientState.IsLoggedIn && _clientState.LocalPlayer != null)
                 {
-                    return Service.ClientState.LocalPlayer?.ClassJob.Id ?? null;
+                    return _clientState.LocalPlayer?.ClassJob.Id ?? null;
                 }
 
                 return null;
@@ -883,14 +889,14 @@ namespace CriticalCommonLib
             
             if(_lastClassJobSwap != null && _lastClassJobSwap.Value.AddSeconds(1) <= frameworkLastUpdate)
             {
-                PluginLog.Verbose("CharacterMonitor: Active character job has changed.");
+                Service.Log.Verbose("CharacterMonitor: Active character job has changed.");
                 _lastClassJobSwap = null;
                 //Make sure the character is fully loaded before firing the event
                 if (ActiveClassJobId  != currentClassJobId)
                 {
                     if (currentClassJobId != null && _activeClassJobId != null)
                     {
-                        Service.Framework.RunOnFrameworkThread(() => { OnCharacterJobChanged?.Invoke(); });
+                        _framework.RunOnFrameworkThread(() => { OnCharacterJobChanged?.Invoke(); });
                         RefreshActiveCharacter();
                     }
                     _activeClassJobId = currentClassJobId;
@@ -915,7 +921,7 @@ namespace CriticalCommonLib
             {
                 if(disposing)
                 {
-                    Service.Framework.Update -= FrameworkOnOnUpdateEvent;
+                    _framework.Update -= FrameworkOnOnUpdateEvent;
                 }
             }
             _disposed = true;         
@@ -929,7 +935,7 @@ namespace CriticalCommonLib
 
             if( _disposed == false )
             {
-                PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
             }
 #endif
             Dispose (true);

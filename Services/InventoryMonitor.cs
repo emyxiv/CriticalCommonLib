@@ -4,9 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using CriticalCommonLib.Crafting;
 using CriticalCommonLib.Models;
-using Dalamud.Logging;
 using CriticalCommonLib.Extensions;
 using CriticalCommonLib.GameStructs;
+using Dalamud.Plugin.Services;
 using static FFXIVClientStructs.FFXIV.Client.Game.InventoryItem;
 using InventoryItem = CriticalCommonLib.Models.InventoryItem;
 using InventoryType = CriticalCommonLib.Enums.InventoryType;
@@ -27,9 +27,9 @@ namespace CriticalCommonLib.Services
         private Dictionary<uint, ItemMarketBoardInfo> _retainerMarketPrices = new();
         private IInventoryScanner _inventoryScanner;
         private ICraftMonitor _craftMonitor;
-        private IFrameworkService _frameworkService;
+        private IFramework _frameworkService;
 
-        public InventoryMonitor(ICharacterMonitor monitor, ICraftMonitor craftMonitor, IInventoryScanner scanner, IFrameworkService frameworkService)
+        public InventoryMonitor(ICharacterMonitor monitor, ICraftMonitor craftMonitor, IInventoryScanner scanner, IFramework frameworkService)
         {
             _characterMonitor = monitor;
             _craftMonitor = craftMonitor;
@@ -46,7 +46,7 @@ namespace CriticalCommonLib.Services
 
         private void InventoryScannerOnBagsChanged(List<BagChange> changes)
         {
-            PluginLog.Verbose("Bags changed, generating inventory");
+            Service.Log.Verbose("Bags changed, generating inventory");
             GenerateInventories(InventoryGenerateReason.ScheduledUpdate);
         }
 
@@ -124,7 +124,7 @@ namespace CriticalCommonLib.Services
                 }
                 else
                 {
-                    PluginLog.LogWarning("Could not find character with ID " + characterId + " while trying to load in existing data.");
+                    Service.Log.Warning("Could not find character with ID " + characterId + " while trying to load in existing data.");
                 }
             }
 
@@ -293,7 +293,7 @@ namespace CriticalCommonLib.Services
             var characterId = _characterMonitor.LocalContentId;
             if (characterId == 0)
             {
-                PluginLog.Debug("Not generating inventory, not logged in.");
+                Service.Log.Debug("Not generating inventory, not logged in.");
                 return;
             }
 
@@ -575,14 +575,14 @@ namespace CriticalCommonLib.Services
             {
                 if (!_inventoryScanner.InMemoryRetainers.ContainsKey(currentRetainer))
                 {
-                    PluginLog.Debug("Inventory scanner does not have information about this retainer.");
+                    Service.Log.Debug("Inventory scanner does not have information about this retainer.");
                     return;
                 }
                 foreach (var inventoryType in inventoryTypes)
                 {
                     if (!_inventoryScanner.InMemoryRetainers[currentRetainer].Contains(inventoryType))
                     {
-                        PluginLog.Debug("Inventory scanner does not have information about a retainer's " + inventoryType.ToString());
+                        Service.Log.Debug("Inventory scanner does not have information about a retainer's " + inventoryType.ToString());
                         return;
                     }
                 }
@@ -592,7 +592,7 @@ namespace CriticalCommonLib.Services
                 }
 
                 var inventory = _inventories[currentRetainer];
-                PluginLog.Debug("Retainer inventory found in scanner, loading into inventory monitor.");
+                Service.Log.Debug("Retainer inventory found in scanner, loading into inventory monitor.");
                 foreach (var inventoryType in inventoryTypes)
                 {
                     var items = _inventoryScanner.GetInventoryByType(currentRetainer,inventoryType);
@@ -680,7 +680,7 @@ namespace CriticalCommonLib.Services
             {
                 if (!_inventoryScanner.InMemory.Contains(inventoryType))
                 {
-                    PluginLog.Verbose("in memory does not contain glamour");
+                    Service.Log.Verbose("in memory does not contain glamour");
                     return;
                 }
             }
@@ -718,7 +718,7 @@ namespace CriticalCommonLib.Services
 
             if( _disposed == false )
             {
-                PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
             }
 #endif
             Dispose (true);

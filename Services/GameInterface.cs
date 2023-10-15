@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Models;
 using CriticalCommonLib.Sheets;
-using Dalamud.Logging;
+using Dalamud.Plugin.Services;
 using Dalamud.Utility.Signatures;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
@@ -14,6 +14,8 @@ namespace CriticalCommonLib.Services
 {
     public unsafe class GameInterface : IGameInterface
     {
+        private readonly IGameInteropProvider _gameInteropProvider;
+
         public delegate void AcquiredItemsUpdatedDelegate();
 
         public event AcquiredItemsUpdatedDelegate? AcquiredItemsUpdated;
@@ -25,9 +27,10 @@ namespace CriticalCommonLib.Services
         GetIsGatheringItemGatheredDelegate? GetIsGatheringItemGathered;
 #pragma warning restore CS0649
 
-        public GameInterface()
+        public GameInterface(IGameInteropProvider gameInteropProvider)
         {
-            SignatureHelper.Initialise(this);
+            _gameInteropProvider = gameInteropProvider;
+            _gameInteropProvider.InitializeFromAttributes(this);
         }
         
         public bool IsGatheringItemGathered(uint gatheringItemId) =>  GetIsGatheringItemGathered != null && GetIsGatheringItemGathered.Invoke((ushort)gatheringItemId) != 0;
@@ -170,7 +173,7 @@ namespace CriticalCommonLib.Services
 
             if( _disposed == false )
             {
-                PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
             }
 #endif
             Dispose (true);

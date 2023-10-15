@@ -2,8 +2,7 @@ using System;
 using CriticalCommonLib.Agents;
 using CriticalCommonLib.Extensions;
 using CriticalCommonLib.Services.Ui;
-using Dalamud.Game;
-using Dalamud.Logging;
+using Dalamud.Plugin.Services;
 using Lumina.Excel.GeneratedSheets;
 using InventoryItem = FFXIVClientStructs.FFXIV.Client.Game.InventoryItem;
 
@@ -39,7 +38,7 @@ namespace CriticalCommonLib.Crafting
         //For both
         private uint? _currentItemId;
 
-        private void FrameworkOnUpdate(Framework framework)
+        private void FrameworkOnUpdate(IFramework framework)
         {
             if (Agent != null && RecipeLevelTable != null)
             {
@@ -64,10 +63,12 @@ namespace CriticalCommonLib.Crafting
                     {
                         if (_currentRecipe != null)
                         {
+                            Service.Log.Debug("Craft completed");
                             CraftCompleted?.Invoke(_currentItemId.Value, InventoryItem.ItemFlags.HQ, _currentRecipe.AmountResult);
                         }
                         else
                         {
+                            Service.Log.Debug("Craft completed");
                             CraftCompleted?.Invoke(_currentItemId.Value, InventoryItem.ItemFlags.HQ, 1);
                         }
                     });
@@ -102,11 +103,13 @@ namespace CriticalCommonLib.Crafting
                             if (_currentRecipe != null)
                             {
                                 var yield = _currentRecipe.AmountResult;
+                                Service.Log.Debug("Craft completed");
                                 CraftCompleted?.Invoke(_currentItemId.Value, InventoryItem.ItemFlags.None,
                                     (simpleAgentNqCompleted - _nqCompleted.Value) * yield);
                             }
                             else
                             {
+                                Service.Log.Debug("Craft completed");
                                 CraftCompleted?.Invoke(_currentItemId.Value, InventoryItem.ItemFlags.None,
                                     simpleAgentNqCompleted - _nqCompleted.Value);
                             }
@@ -127,11 +130,13 @@ namespace CriticalCommonLib.Crafting
                             if (_currentRecipe != null)
                             {
                                 var yield = _currentRecipe.AmountResult;
+                                Service.Log.Debug("Craft completed");
                                 CraftCompleted?.Invoke(_currentItemId.Value, InventoryItem.ItemFlags.HQ,
                                     (simpleAgentHqCompleted - _hqCompleted.Value) * yield);
                             }
                             else
                             {
+                                Service.Log.Debug("Craft completed");
                                 CraftCompleted?.Invoke(_currentItemId.Value, InventoryItem.ItemFlags.HQ,
                                     simpleAgentHqCompleted - _hqCompleted.Value);
                             }
@@ -148,6 +153,7 @@ namespace CriticalCommonLib.Crafting
                     }
                     else if(_currentItemId != null)
                     {
+                        Service.Log.Debug("Craft failed");
                         Service.Framework.RunOnFrameworkThread(() => { CraftFailed?.Invoke(_currentItemId.Value); });
                         _failed = simpleAgentFailed;
                     }
@@ -208,7 +214,7 @@ namespace CriticalCommonLib.Crafting
                 }
                 else
                 {
-                    PluginLog.Error("Could not find correct recipe for given synthesis. ");
+                    Service.Log.Error("Could not find correct recipe for given synthesis. ");
                 }
 
                 Service.Framework.RunOnFrameworkThread(() => { CraftStarted?.Invoke(_agent.ResultItemId); });
@@ -224,7 +230,7 @@ namespace CriticalCommonLib.Crafting
                 }
                 else
                 {
-                    PluginLog.Error("Could not find correct recipe for given synthesis. ");
+                    Service.Log.Error("Could not find correct recipe for given synthesis. ");
                 }
 
                 Service.Framework.RunOnFrameworkThread(() =>
@@ -295,7 +301,7 @@ namespace CriticalCommonLib.Crafting
 
             if( _disposed == false )
             {
-                PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
             }
 #endif
             Dispose (true);

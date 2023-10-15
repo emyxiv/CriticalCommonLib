@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using CriticalCommonLib.Agents;
 using CriticalCommonLib.Enums;
-using Dalamud.Logging;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
@@ -93,9 +92,9 @@ namespace CriticalCommonLib.Services.Ui
                 if (newColour.HasValue)
                 {
                     atkResNode->Color.A = (byte) (newColour.Value.W * 255.0f);
-                    atkResNode->AddBlue = (ushort) (newColour.Value.Z * 255.0f);
-                    atkResNode->AddRed = (ushort) (newColour.Value.X * 255.0f);
-                    atkResNode->AddGreen = (ushort) (newColour.Value.Y * 255.0f);
+                    atkResNode->AddBlue = (short) (newColour.Value.Z * 255.0f);
+                    atkResNode->AddRed = (short) (newColour.Value.X * 255.0f);
+                    atkResNode->AddGreen = (short) (newColour.Value.Y * 255.0f);
                 }
                 else
                 {
@@ -114,7 +113,7 @@ namespace CriticalCommonLib.Services.Ui
             if (atkBaseWrapper == null || atkBaseWrapper.AtkUnitBase == null) return;
             if (!BagToNumber.ContainsKey(bag))
             {
-                PluginLog.Error("bag to number does not contain " + bag);
+                Service.Log.Error("bag to number does not contain " + bag);
                 return;
             }
 
@@ -133,9 +132,9 @@ namespace CriticalCommonLib.Services.Ui
                     if (newColour.HasValue)
                     {
                         atkResNode->Color.A = (byte) (newColour.Value.W * 255.0f);
-                        atkResNode->AddBlue = (ushort) (newColour.Value.Z * 255.0f);
-                        atkResNode->AddRed = (ushort) (newColour.Value.X * 255.0f);
-                        atkResNode->AddGreen = (ushort) (newColour.Value.Y * 255.0f);
+                        atkResNode->AddBlue = (short) (newColour.Value.Z * 255.0f);
+                        atkResNode->AddRed = (short) (newColour.Value.X * 255.0f);
+                        atkResNode->AddGreen = (short) (newColour.Value.Y * 255.0f);
                     }
                     else
                     {

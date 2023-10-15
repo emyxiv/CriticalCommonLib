@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using CriticalCommonLib.Sheets;
-using Dalamud.Logging;
 using Lumina.Data.Files;
 using Lumina.Data.Parsing.Layer;
 using Lumina.Excel;
@@ -126,7 +125,7 @@ public class ENpcCollection : IEnumerable<ENpc> {
 
                 if( _disposed == false )
                 {
-                    PluginLog.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
+                    Service.Log.Error("There is a disposable object which hasn't been disposed before the finalizer call: " + (this.GetType ().Name));
                 }
                     #endif
                 Dispose (true);
