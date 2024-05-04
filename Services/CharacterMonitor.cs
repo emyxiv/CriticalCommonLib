@@ -25,6 +25,7 @@ namespace CriticalCommonLib
         private bool _isRetainerLoaded = false;
         private bool _isFreeCompanyLoaded = false;
         private bool _isHouseLoaded = false;
+        private bool _initialCheck = false;
         private Dictionary<ulong, uint> _trackedGil = new Dictionary<ulong, uint>();
 
         
@@ -36,7 +37,6 @@ namespace CriticalCommonLib
             _territoryMap = new Dictionary<uint, uint>();
             _characters = new Dictionary<ulong, Character>();
             _framework.Update += FrameworkOnOnUpdateEvent;
-            RefreshActiveCharacter();
         }
 
         public CharacterMonitor(bool noSetup)
@@ -130,7 +130,17 @@ namespace CriticalCommonLib
         public delegate void CharacterJobChangedDelegate();
 
         public event CharacterJobChangedDelegate? OnCharacterJobChanged;
-        
+
+        public KeyValuePair<ulong, Character>[] GetFreeCompanyCharacters(ulong freeCompanyId)
+        {
+            return Characters.Where(c => c.Value.Name != "" && (c.Value.CharacterType == CharacterType.Character && c.Value.FreeCompanyId == freeCompanyId)).ToArray();
+        }
+
+        public HashSet<uint> GetWorldIds()
+        {
+            return Characters.Select(c => c.Value.WorldId).ToHashSet();
+        }
+
         public Dictionary<ulong, Character> Characters => _characters;
 
         public KeyValuePair<ulong, Character>[] GetPlayerCharacters()
@@ -267,9 +277,9 @@ namespace CriticalCommonLib
             return false;
         }
 
-        public KeyValuePair<ulong, Character>[] GetRetainerCharacters(ulong retainerId)
+        public KeyValuePair<ulong, Character>[] GetRetainerCharacters(ulong ownerId)
         {
-            return Characters.Where(c => c.Value.OwnerId == retainerId && c.Value.CharacterType == CharacterType.Retainer && c.Key != 0 && c.Value.Name != "").ToArray();
+            return Characters.Where(c => c.Value.OwnerId == ownerId && c.Value.CharacterType == CharacterType.Retainer && c.Key != 0 && c.Value.Name != "").ToArray();
         }
 
         public KeyValuePair<ulong, Character>[] GetRetainerCharacters()
@@ -851,6 +861,12 @@ namespace CriticalCommonLib
         
         private void FrameworkOnOnUpdateEvent(IFramework framework)
         {
+            //Check the active character once when we first load, this is to stop the check from being run off-thread
+            if (!_initialCheck)
+            {
+                RefreshActiveCharacter();
+                _initialCheck = true;
+            }
             UpdateRetainers(framework.LastUpdate);
             UpdateFreeCompany(framework.LastUpdate);
             UpdateHouses(framework.LastUpdate);

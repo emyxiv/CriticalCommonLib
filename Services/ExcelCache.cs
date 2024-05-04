@@ -564,6 +564,39 @@ namespace CriticalCommonLib.Services
 
             return null;
         }
+        private Dictionary<uint, List<MobDropEx>>? _mobDropsByBNpcNameId;
+        public List<MobDropEx>? GetMobDropsByBNpcNameId(uint bNpcNameId)
+        {
+            if (MobDrops == null)
+            {
+                return null;
+            }
+            if (_mobDropsByBNpcNameId == null)
+            {
+                _mobDropsByBNpcNameId = MobDrops.GroupBy(c => c.BNpcNameId, c => c).ToDictionary(c => c.Key, c => c.ToList());
+            }
+
+            if (_mobDropsByBNpcNameId.ContainsKey(bNpcNameId))
+            {
+                return _mobDropsByBNpcNameId[bNpcNameId];
+            }
+
+            return null;
+        }
+
+        public bool HasMobDrops(uint itemId)
+        {
+            if (MobDrops == null)
+            {
+                return false;
+            }
+            if (_mobDrops == null)
+            {
+                _mobDrops = MobDrops.GroupBy(c => c.ItemId, c => c).ToDictionary(c => c.Key, c => c.ToList());
+            }
+
+            return _mobDrops.ContainsKey(itemId);
+        }
 
         private Dictionary<uint, List<MobSpawnPositionEx>>? _mobSpawns;
         public List<MobSpawnPositionEx>? GetMobSpawns(uint bNpcNameId)
@@ -791,6 +824,23 @@ namespace CriticalCommonLib.Services
             return null;
         }
 
+        private bool _notoriousMonstersLookedUp = false;
+        private Dictionary<uint, NotoriousMonster> _notoriousMonsters;
+        public NotoriousMonster? GetNotoriousMonster(uint bNpcNameId)
+        {
+            if (!_notoriousMonstersLookedUp)
+            {
+                _notoriousMonsters = GetNotoriousMonsterSheet().Where(c => c.RowId != 0).DistinctBy(c => c.BNpcName.Row).ToDictionary(c => c.BNpcName.Row, c => c);
+            }
+
+            if (_notoriousMonsters.ContainsKey(bNpcNameId))
+            {
+                return _notoriousMonsters[bNpcNameId];
+            }
+
+            return null;
+        }
+
         private Dictionary<uint, List<RetainerTaskEx>>? _itemRetainerTasks;
         private Dictionary<uint, HashSet<RetainerTaskType>>? _itemRetainerTypes;
 
@@ -915,6 +965,13 @@ namespace CriticalCommonLib.Services
             if (!_armoireLoaded) CalculateArmoireItems();
 
             return _armoireItems.Contains(rowId);
+        }
+
+        public HashSet<uint> GetArmoireItems()
+        {
+            if (!_armoireLoaded) CalculateArmoireItems();
+
+            return _armoireItems;
         }
 
         private ExcelCache()
@@ -1156,7 +1213,7 @@ namespace CriticalCommonLib.Services
                         }
                         foreach (var rewardItem in listing.Rewards)
                         {
-                            specialShopItemCostRewardLookup[item.ItemEx.Row].Add(((uint)item.Count, rewardItem.ItemEx.Row));
+                            specialShopItemCostRewardLookup[item.ItemEx.Row].Add(((uint)rewardItem.Count, rewardItem.ItemEx.Row));
                         }
                     }
                 }
@@ -1610,6 +1667,27 @@ namespace CriticalCommonLib.Services
             return false;
         }
 
+        public bool IsItemAvailableAtEphemeralNode(uint itemId)
+        {
+            if (!_gatheringItemLinksCalculated) CalculateGatheringItemLinks();
+
+            if (!_gatheringItemPointLinksCalculated) CalculateGatheringItemPointLinks();
+
+            if (GatheringItemsLinks.ContainsKey(itemId))
+            {
+                var gatheringItemId = GatheringItemsLinks[itemId];
+                if (GatheringItemPointLinks.ContainsKey(gatheringItemId))
+                {
+                    var gatheringPointId = GatheringItemPointLinks[gatheringItemId];
+                    var gatheringPointTransient = GetGatheringPointTransient(gatheringPointId);
+                    if (gatheringPointTransient != null)
+                        return gatheringPointTransient.EphemeralStartTime != 0 || gatheringPointTransient.EphemeralEndTime != 0;
+                }
+            }
+
+            return false;
+        }
+
         private bool _disposed;
         public void Dispose()
         {
@@ -1912,6 +1990,11 @@ namespace CriticalCommonLib.Services
             return _craftTypeSheet ??= GetSheet<CraftTypeEx>();
         }
 
+        public ExcelSheet<NotoriousMonster> GetNotoriousMonsterSheet()
+        {
+            return _notoriousMonsterSheet ??= GetSheet<NotoriousMonster>();
+        }
+
         private ExcelSheet<ItemEx>? _itemExSheet;
         private ExcelSheet<CabinetCategory>? _cabinetCategorySheet;
         private ExcelSheet<RecipeEx>? _recipeExSheet;
@@ -1963,6 +2046,7 @@ namespace CriticalCommonLib.Services
         private ExcelSheet<SubmarineExplorationEx>? _submarineExplorationSheetEx;
         private ExcelSheet<HWDCrafterSupplyEx>? _hwdCrafterSupplySheet;
         private ExcelSheet<CraftTypeEx>? _craftTypeSheet;
+        private ExcelSheet<NotoriousMonster>? _notoriousMonsterSheet;
         private Dictionary<uint, uint>? _itemToCabinetCategory;
     }
 }
