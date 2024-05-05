@@ -1,15 +1,15 @@
 ﻿using CriticalCommonLib.Services;
 using CriticalCommonLib.Time;
-using DalaMock.Shared.Interfaces;
 using Dalamud.Game.ClientState.Objects;
 using Dalamud.IoC;
+using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 
 namespace CriticalCommonLib
 {
-    public class Service : IServiceContainer
+    public class Service
     {
-        public static IPluginInterfaceService Interface { get; set; } = null!;
+        public static DalamudPluginInterface PluginInterfaceService { get; set; } = null!;
         [PluginService] public static IChatGui Chat { get; set; } = null!;
         [PluginService] public static IClientState ClientState { get; set; } = null!;
         [PluginService] public static ICommandManager Commands { get; set; } = null!;
@@ -32,7 +32,7 @@ namespace CriticalCommonLib
 
         public static void Dereference()
         {
-            Interface = null!;
+			PluginInterfaceService = null!;
             Chat = null!;
             ClientState = null!;
             Commands = null!;
@@ -51,16 +51,5 @@ namespace CriticalCommonLib
             SeTime = null!;
         }
 
-        public IPluginInterfaceService PluginInterfaceService
-        {
-            get
-            {
-                return Interface;
-            }
-            set
-            {
-                Interface = value;
-            }
-        }
     }
 }
