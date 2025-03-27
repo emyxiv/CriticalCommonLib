@@ -38,6 +38,8 @@ namespace CriticalCommonLib.Services.Ui
         Synthesis,
         SynthesisSimple,
         SubmarinePartsMenu,
+
+        MiragePrismMiragePlate,
         
         HousingGoods,//Interior and Exterior placement window for housing items
         HousingEditExterior,
