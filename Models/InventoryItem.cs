@@ -60,12 +60,17 @@ namespace CriticalCommonLib.Models
         public uint[]? GearSets = Array.Empty<uint>();
         public string[]? GearSetNames = Array.Empty<string>();
 
-        public delegate InventoryItem Factory();
+		[JsonConstructor]
+		public InventoryItem() {
 
-        public InventoryItem(ItemSheet itemSheet, ExcelSheet<Stain> stainSheet)
+		}
+        public InventoryItem(InventoryItem inventoryItem)
         {
-            _itemSheet = itemSheet;
-            _stainSheet = stainSheet;
+            FromInventoryItem(inventoryItem);
+        }
+        public InventoryItem(InventoryType container, short slot, uint itemId, uint quantity, ushort spiritbond, ushort condition, FFXIVClientStructs.FFXIV.Client.Game.InventoryItem.ItemFlags flags, ushort materia0, ushort materia1, ushort materia2, ushort materia3, ushort materia4, byte materiaLevel0, byte materiaLevel1, byte materiaLevel2, byte materiaLevel3, byte materiaLevel4, byte stain, byte stain2, uint glamourId)
+        {
+            FromRaw(container, slot, itemId, quantity, spiritbond, condition, flags, materia0, materia1, materia2, materia3, materia4, materiaLevel0, materiaLevel1, materiaLevel2, materiaLevel3, materiaLevel4, stain, stain2, glamourId);
         }
 
         public void FromSerializedItem(ulong[] serializedItem)
@@ -351,13 +356,13 @@ namespace CriticalCommonLib.Models
         [JsonIgnore] public bool InGearSet => (GearSets?.Length ?? 0) != 0;
 
         [JsonIgnore]
-        public ItemRow Item => _itemSheet.GetRowOrDefault(ItemId) ?? _itemSheet.GetRow(1);
+        public virtual ItemRow Item {get;}
 
         [JsonIgnore]
-        public Stain? StainEntry => _stainSheet.GetRowOrDefault(Stain);
+        public virtual Stain? StainEntry {get;}
 
         [JsonIgnore]
-        public Stain? Stain2Entry => _stainSheet.GetRowOrDefault(Stain2);
+        public virtual Stain? Stain2Entry {get;}
 
         [JsonIgnore]
         public ushort Icon {
