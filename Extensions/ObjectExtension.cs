@@ -105,7 +105,9 @@ namespace CriticalCommonLib.Extensions
         }
         public static T? Copy<T>(this T original)
         {
-            return (T?)Copy((Object?)original);
+            var json = System.Text.Json.JsonSerializer.Serialize(original);
+            return System.Text.Json.JsonSerializer.Deserialize<T>(json);
+            // return (T?)Copy((Object?)original);
         }
 
         public static T? CopyFields<T>(this T originalObject, T newObject)
